@@ -821,18 +821,18 @@ function stageOf(o){
   if(o.status==='Cancelled') return 'cancelled';
   if(o.deliveredDate) return 'delivered';
   if(o.dispatchedDate) return 'dispatched';
-  if(o.doNum) return 'ready';
-  if(o.pickingDone) return 'ready';
-  if(o.discrepancySettled) return 'ready';
+  if(o.doNum && (o.pickingDone||o.pickingCompleted||o.discrepancySettled)) return 'ready';
+  if(o.discrepancySettled) return 'pendingDO'; // settled but no DO yet
   if(o.pickingCompleted && o.discrepancy==='Yes' && !o.discrepancySettled) return 'pendingDiscrep';
-  if(o.pickingCompleted) return 'ready';
+  if(o.pickingCompleted) return 'pendingDO'; // picking done but OC hasn't issued DO yet
+  if(o.pickingDone) return 'pendingDO';
   if(o.pickingStarted) return 'picking';
   if(o.passedToSK && hasUnreceivedPO(o)) return 'awaitingGoods';
   if(o.passedToSK) return 'pendingSK';
   return 'pendingOC';
 }
-function stageLabel(s){return{pendingOC:'Pending (OC)',pendingSK:'Pending (SK)',awaitingGoods:'Awaiting Goods',picking:'Picking',pendingDiscrep:'Pending Discrepancy',ready:'Ready to Ship',dispatched:'Dispatched',delivered:'Delivered',cancelled:'Cancelled'}[s]||s}
-function stagePillClass(s){return{pendingOC:'pill-pending',pendingSK:'pill-hold',awaitingGoods:'pill-hold',picking:'pill-wip',pendingDiscrep:'pill-hold',ready:'pill-wip',dispatched:'pill-wip',delivered:'pill-done',cancelled:'pill-cancel'}[s]||'pill-pending'}
+function stageLabel(s){return{pendingOC:'Pending (OC)',pendingSK:'Pending (SK)',awaitingGoods:'Awaiting Goods',picking:'Picking',pendingDiscrep:'Pending Discrepancy',pendingDO:'Pending DO',ready:'Ready to Ship',dispatched:'Dispatched',delivered:'Delivered',cancelled:'Cancelled'}[s]||s}
+function stagePillClass(s){return{pendingOC:'pill-pending',pendingSK:'pill-hold',awaitingGoods:'pill-hold',picking:'pill-wip',pendingDiscrep:'pill-hold',pendingDO:'pill-hold',ready:'pill-wip',dispatched:'pill-wip',delivered:'pill-done',cancelled:'pill-cancel'}[s]||'pill-pending'}
 function showToast(msg,ms=2200){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.remove('hidden');
@@ -1019,6 +1019,9 @@ function renderDashboard(){
                   ${effDate?`<div style="font-size:11px;margin-top:4px;font-weight:600;color:${isRevised?'var(--amber)':'var(--grey-600)'}">
                     ${isRevised?'👤 Rev: ':'📅 '}${fmt(effDate)}
                   </div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:4px">No date set</div>'}
+                  <div style="font-size:11px;margin-top:3px;font-weight:600;font-family:'JetBrains Mono',monospace;color:${o.doNum?'var(--teal)':'var(--amber)'}">
+                    ${o.doNum?'DO: '+esc(o.doNum):'⚠️ Pending DO'}
+                  </div>
                 </div>
               </div>
             </div>`;
@@ -1030,7 +1033,7 @@ function renderDashboard(){
 
 function renderOrders(){
   const role=currentUser.role;
-  const stages={pendingOC:0,pendingSK:0,awaitingGoods:0,picking:0,pendingDiscrep:0,ready:0,dispatched:0,delivered:0,cancelled:0};
+  const stages={pendingOC:0,pendingSK:0,awaitingGoods:0,picking:0,pendingDiscrep:0,pendingDO:0,ready:0,dispatched:0,delivered:0,cancelled:0};
   db.orders.forEach(o=>stages[stageOf(o)]++);
 
   const filterMonth = selectedMonth;
@@ -1114,8 +1117,8 @@ function renderOrders(){
         <div style="font-size:9px;color:var(--grey-500);margin-top:2px">${lb}</div>
       </div>`).join('')}
   </div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;min-width:0">
-    ${[['📦','Picking / Ready',stages.picking+(stages.ready||0),'var(--blue)'],['🚚','Dispatched',stages.dispatched,'var(--navy)'],['✅','Delivered',stages.delivered,'var(--green)']]
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;min-width:0">
+    ${[['📦','Picking',stages.picking,'var(--blue)'],['📄','Pending DO',stages.pendingDO,'var(--amber)'],['🚚','Dispatched',stages.dispatched,'var(--navy)'],['✅','Delivered',stages.delivered,'var(--green)']]
       .map(([ic,lb,ct,cc])=>`<div class="card" style="margin:0;padding:10px 6px;text-align:center">
         <div style="font-size:16px">${ic}</div>
         <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${cc}">${ct}</div>
@@ -1265,8 +1268,8 @@ function renderStepTrack(stage){
   const steps=['pendingOC','pendingSK','picking','pendingDiscrep','ready','dispatched','delivered'];
   const labels=['SO Created','Pending SK','Picking','Discrepancy','Ready','Dispatched','Delivered'];
   // for display, collapse pendingDiscrep into picking position if no discrepancy
-  const displaySteps=['pendingOC','pendingSK','picking','ready','dispatched','delivered'];
-  const displayLabels=['SO Created','Pending SK','Picking','Ready','Dispatched','Delivered'];
+  const displaySteps=['pendingOC','pendingSK','picking','pendingDO','ready','dispatched','delivered'];
+  const displayLabels=['SO Created','Pending SK','Picking','Pending DO','Ready','Dispatched','Delivered'];
   const isDiscrep=stage==='pendingDiscrep';
   const useSteps=isDiscrep?steps:displaySteps;
   const useLabels=isDiscrep?labels:displayLabels;
@@ -1460,6 +1463,10 @@ function openSO(id){
       <div class="form-row">
         <div class="fg"><label>DO Date</label><input type="date" id="d-dodate" value="${o.doDate||''}"></div>
       </div>
+      ${(o.pickingCompleted||o.pickingDone)&&!o.doNum?`
+      <div style="background:var(--amber-lt);border:1px solid #fde68a;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:var(--amber);font-weight:600">
+        ⚠️ Picking is done — please fill in the DO Number to move this order to Ready to Ship
+      </div>`:''}
       <button class="btn btn-primary btn-sm" onclick="updateOC('${id}')">Save OC Update</button>
       <hr style="border:none;border-top:1px solid var(--grey-100);margin:14px 0">
       ${!o.passedToSK
@@ -1562,7 +1569,24 @@ function openSO(id){
         </div>
         ${o.dispatchedDate
           ?`<div style="background:var(--blue-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--blue);font-weight:600">🚚 Dispatched on ${fmt(o.dispatchedDate)} at ${o.dispatchedTime||'—'} (Malaysia Time)</div>`
-          :`<button class="btn btn-sm" style="background:var(--blue);color:white;width:100%;justify-content:center;padding:13px;font-size:14px" onclick="updateLDDispatch('${id}')" type="button">🚚 Mark as Dispatched — Record Current Time</button>`
+          :o.doNum
+            ?`<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:10px 14px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;margin-bottom:6px">Please verify before dispatching:</div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:10px">
+                  <div><span style="color:var(--grey-500)">DO Number:</span> <strong style="color:var(--navy);font-family:'JetBrains Mono',monospace">${esc(o.doNum)}</strong></div>
+                  <div><span style="color:var(--grey-500)">Invoice:</span> <strong style="color:var(--navy);font-family:'JetBrains Mono',monospace">${o.invNum?esc(o.invNum):'<span style="color:var(--grey-400)">No Invoice</span>'}</strong></div>
+                  <div><span style="color:var(--grey-500)">Customer:</span> <strong>${esc(o.customer)}</strong></div>
+                  <div><span style="color:var(--grey-500)">Req. Date:</span> <strong>${fmt(o.requestedDateRev2||o.requestedDateRev1||o.requestedDate)}</strong></div>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--grey-800);margin-bottom:10px;cursor:pointer">
+                  <input type="checkbox" id="dispatch-confirm" style="width:18px;height:18px;accent-color:var(--blue)">
+                  I have verified the DO number and goods are correct
+                </label>
+                <button class="btn btn-sm" style="background:var(--blue);color:white;width:100%;justify-content:center;padding:13px;font-size:14px" onclick="updateLDDispatch('${id}')" type="button">🚚 Confirm &amp; Mark as Dispatched</button>
+              </div>`
+            :`<div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--red);font-weight:600">
+                🚫 Cannot Dispatch — OC has not issued a DO Number yet. Please contact OC.
+              </div>`
         }
       </div>
 
@@ -1674,6 +1698,8 @@ function updateLDDispatch(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   const driverName=document.getElementById('d-driver').value.trim();
   if(!driverName){showToast('⚠️ Please enter driver name');return}
+  const confirmed=document.getElementById('dispatch-confirm');
+  if(confirmed&&!confirmed.checked){showToast('⚠️ Please verify the DO number and check the box first');return}
   o.driverName=driverName;
   o.dispatchedDate=myDate();   // auto Malaysia date
   o.dispatchedTime=myTime();   // auto Malaysia time
