@@ -778,6 +778,7 @@ function switchTab(tab){
 // ─────────────────────────────────────────────────────────
 function fmt(d){if(!d)return'—';const[y,m,day]=d.split('-');return`${day}/${m}/${y}`}
 function daysBetween(a,b){if(!a||!b)return null;return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))}
+function effectiveReqDate(o){return o.requestedDateRev2||o.requestedDateRev1||o.requestedDate||null;}
 function today(){return new Date().toISOString().slice(0,10)}
 function getMYT(){
   // Get current Malaysia Time (UTC+8) correctly
@@ -1057,9 +1058,12 @@ function renderOrders(){
       </div>
       <div class="form-row">
         <div class="fg"><label>Requested Delivery Date</label><input type="date" id="n-reqdate"></div>
+        <div class="fg"><label>OC Received Date * <span style="font-size:9px;color:var(--grey-400);font-weight:400">(Date OC actually received this SO)</span></label><input type="date" id="n-ocreceived" value="${today()}"></div>
         <div class="fg"><label>Delivery Type</label>
           <select id="n-dtype"><option value="Local">Local (Same Day)</option><option value="Outstation">Outstation</option></select>
         </div>
+      </div>
+      <div class="form-row">
         <div class="fg"><label>Remarks</label><input id="n-remarks" placeholder="Optional"></div>
       </div>
       <button class="btn btn-primary" onclick="addOrder()">Create SO</button>
@@ -1224,7 +1228,7 @@ function renderOrdersView(){
 function renderSOCard(o){
   const stage=stageOf(o);
   const totalDays=o.deliveredDate?daysBetween(o.soDate,o.deliveredDate):null;
-  const onTime=o.requestedDate&&o.deliveredDate?o.deliveredDate<=o.requestedDate:null;
+  const onTime=o.deliveredDate&&effectiveReqDate(o)?o.deliveredDate<=effectiveReqDate(o):null;
   const storeList=o.storeKeepers&&o.storeKeepers.length?o.storeKeepers.join(', '):'—';
   return`
   <div class="so-card" onclick="openSO('${o.id}')">
@@ -1344,6 +1348,7 @@ function addOrder(){
   const customer=document.getElementById('n-cust').value.trim();
   const soDate=document.getElementById('n-sodate').value;
   const reqDate=document.getElementById('n-reqdate').value;
+  const ocReceived=document.getElementById('n-ocreceived').value||soDate;
   const dtype=document.getElementById('n-dtype').value;
   const remarks=document.getElementById('n-remarks').value.trim();
   if(!soNum||!customer||!soDate){showToast('⚠️ SO Number, Customer and Date required');return}
@@ -1365,6 +1370,7 @@ function addOrder(){
     soNum,customer,soDate,
     requestedDate:reqDate||null,
     originalRequestedDate:reqDate||null,
+    ocReceivedDate:ocReceived||soDate,
     deliveryType:dtype,
     remarks,status:'Active',
     ocName:currentUser.name,
@@ -1378,6 +1384,7 @@ function addOrder(){
   db.orders.push(order);
   saveDB(order);
   ['n-so','n-cust','n-reqdate','n-remarks'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('n-ocreceived').value=today();
   document.getElementById('n-sodate').value=today();
   newPORows=[];
   renderNewPORows();
@@ -1428,6 +1435,11 @@ function openSO(id){
     html+=`<div class="form-section">
       <div class="form-section-title">OC Actions</div>
       <div class="form-row">
+        <div class="fg">
+          <label>OC Received Date</label>
+          <input type="date" id="d-ocreceived" value="${o.ocReceivedDate||o.soDate||''}">
+          <div style="font-size:10px;color:var(--grey-400);margin-top:2px">Date OC actually received this SO from Operations</div>
+        </div>
         <div class="fg">
           <label>Requested Delivery Date (Original)</label>
           <input type="date" id="d-reqdate-orig" value="${o.originalRequestedDate||o.requestedDate||''}">
@@ -1633,6 +1645,7 @@ function updateOC(id){
   const rev1=document.getElementById('d-reqdate-rev1').value||null;
   const rev2=document.getElementById('d-reqdate-rev2').value||null;
 
+  o.ocReceivedDate=document.getElementById('d-ocreceived').value||o.soDate;
   o.originalRequestedDate=origDate;
   o.requestedDateRev1=rev1||null;
   o.requestedDateRev2=rev2||null;
@@ -1996,38 +2009,129 @@ function renderKPI(){
   const role=currentUser.role;
   const months=getMonths();
   if(!selectedMonth&&months.length) selectedMonth=months[0];
-  const mOrders=selectedMonth?db.orders.filter(o=>o.soDate.startsWith(selectedMonth)):db.orders;
+  const mOrders=selectedQuarter
+    ?db.orders.filter(o=>{const d=o.ocReceivedDate||o.soDate;return d>=window._qStart&&d<=window._qEnd+'-31';})
+    :selectedMonth?db.orders.filter(o=>(o.ocReceivedDate||o.soDate).startsWith(selectedMonth))
+    :db.orders;
 
-  let html=`<div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">KPI Dashboard</div>
-  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${selectedMonth?monthLabel(selectedMonth):'All time'}</div>
+  let html=`<div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">My KPI</div>
+  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${selectedQuarter?selectedQuarter+' '+selectedQuarter==='Q1'?'Apr–Jun 2026':selectedQuarter==='Q2'?'Jul–Sep 2026':selectedQuarter==='Q3'?'Oct–Dec 2026':'Jan–Mar 2027':selectedMonth?monthLabel(selectedMonth):'All time'} · ${roleName(role)}</div>
+  <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">By Quarter</div>
+  <div class="month-chips" style="margin-bottom:8px">
+    ${[['Q1','2026-04','2026-06'],['Q2','2026-07','2026-09'],['Q3','2026-10','2026-12'],['Q4','2027-01','2027-03']]
+      .map(([q,s,e])=>`<button class="mchip ${selectedQuarter===q?'active':''}" onclick="kpiQuarter('${q}','${s}','${e}')">${q} ${q==='Q1'?'Apr-Jun':q==='Q2'?'Jul-Sep':q==='Q3'?'Oct-Dec':'Jan-Mar'}</button>`).join('')}
+  </div>
+  <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">By Month</div>
   <div class="month-chips">
-    ${months.slice(0,6).map(m=>`<button class="mchip ${m===selectedMonth?'active':''}" onclick="kpiMonth('${m}')">${monthLabel(m)}</button>`).join('')}
-    <button class="mchip ${!selectedMonth?'active':''}" onclick="kpiMonth(null)">All</button>
+    ${months.slice(0,6).map(m=>`<button class="mchip ${m===selectedMonth&&!selectedQuarter?'active':''}" onclick="kpiMonth('${m}')">${monthLabel(m)}</button>`).join('')}
+    <button class="mchip ${!selectedMonth&&!selectedQuarter?'active':''}" onclick="kpiMonth(null)">All</button>
   </div>`;
 
+  // ── OC KPI ──────────────────────────────────────────────────────────────
   if(role==='OC'||role==='MGR'){
     // OC sees all orders (ocName filter removed — covers old data and shared responsibility)
     const myOrders=mOrders;
     const delivered=myOrders.filter(o=>o.deliveredDate);
     // For OC KPI: if last date change was customer-requested, use original date for "fault" check
     // but use final requestedDate for on-time check (customer changed it, so new date is the target)
-    const onTime=delivered.filter(o=>o.requestedDate&&o.deliveredDate<=o.requestedDate);
+    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
     const customerChangedDate=delivered.filter(o=>o.lastDateChangeReason==='customer');
     const ocFaultLate=delivered.filter(o=>{
-      if(!o.requestedDate||o.deliveredDate<=o.requestedDate) return false; // on time
-      if(o.lastDateChangeReason==='customer') return false; // customer changed, not OC fault
+      const ed=effectiveReqDate(o);
+      if(!ed||o.deliveredDate<=ed) return false;
+      if(o.lastDateChangeReason==='customer') return false;
       return true;
     });
     const otPct=delivered.length?onTime.length/delivered.length:null;
     const r1=otPct===null?null:otPct>=0.98?4:otPct>=0.95?3:otPct>=0.90?2:1;
     const avgDays=delivered.length?delivered.reduce((s,o)=>s+daysBetween(o.soDate,o.deliveredDate),0)/delivered.length:null;
-    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">📋 Operations Coordinator KPIs${role==='MGR'?' (All OCs)':''}</div>
-    <div class="kpi-grid">
-      ${kpiCard('Delivered',delivered.length,'completed this period',null,null)}
-      ${kpiCard('On-Time Delivery',pct(otPct),`${onTime.length}/${delivered.length} on time`,r1,otPct)}
-      ${kpiCard('OC-Fault Late',ocFaultLate.length,'counted in KPI',null,null)}
-      ${kpiCard('Avg SO→Delivery',avgDays?avgDays.toFixed(1)+'d':'—','days to complete',null,null)}
+    const r1b=ocFaultLate.length===0&&delivered.length>0?4:ocFaultLate.length<=1?3:ocFaultLate.length<=3?2:1;
+
+    // SO Processing Rate: OC Received → Pass to SK
+    const withOCReceived=mOrders.filter(o=>o.ocReceivedDate&&o.passedToSK);
+    const ocProcessDays=withOCReceived.map(o=>Math.max(0,daysBetween(o.ocReceivedDate,o.passedToSK)));
+    const avgOCProcess=ocProcessDays.length?ocProcessDays.reduce((a,b)=>a+b,0)/ocProcessDays.length:null;
+    const ocProcessOnTime=ocProcessDays.filter(d=>d<=1).length;
+    const ocProcessPct=ocProcessDays.length?ocProcessOnTime/ocProcessDays.length:null;
+    const r1c=ocProcessPct===null?null:ocProcessPct>=1?4:ocProcessPct>=0.90?3:ocProcessPct>=0.75?2:1;
+
+    // Operations Exe Handover: SO Date → OC Received Date
+    const withHandover=mOrders.filter(o=>o.ocReceivedDate&&o.soDate);
+    const handoverDays=withHandover.map(o=>Math.max(0,daysBetween(o.soDate,o.ocReceivedDate)));
+    const avgHandover=handoverDays.length?handoverDays.reduce((a,b)=>a+b,0)/handoverDays.length:null;
+    const maxHandover=handoverDays.length?Math.max(...handoverDays):null;
+    const delayedHandover=handoverDays.filter(d=>d>3).length;
+
+    // Monthly summary
+    const soReceivedThisPeriod=mOrders.length;
+    const deliveredThisPeriod=selectedMonth
+      ?db.orders.filter(o=>o.deliveredDate&&o.deliveredDate.startsWith(selectedMonth)).length
+      :selectedQuarter
+      ?db.orders.filter(o=>o.deliveredDate&&o.deliveredDate>=window._qStart&&o.deliveredDate<=window._qEnd+'-31').length
+      :db.orders.filter(o=>o.deliveredDate).length;
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">📋 Operations Coordinator KPIs</div>
+
+    <!-- Period Summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:var(--blue-lt);border:1px solid var(--blue-dim);border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;margin-bottom:2px">SO Received (by OC Received Date)</div>
+        <div style="font-size:22px;font-weight:800;color:var(--navy);font-family:'JetBrains Mono',monospace">${soReceivedThisPeriod}</div>
+      </div>
+      <div style="background:var(--green-lt);border:1px solid #86efac;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:2px">Delivered (by Delivered Date)</div>
+        <div style="font-size:22px;font-weight:800;color:var(--navy);font-family:'JetBrains Mono',monospace">${deliveredThisPeriod}</div>
+      </div>
     </div>
+
+    <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r1)}">${pct(otPct)}</div>
+        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
+        ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r1)}"></div></div>`:''}
+        ${r1?`<div class="rating-badge" style="background:${ratingColor(r1)}20;color:${ratingColor(r1)}">Rating ${r1} · ${ratingLabel(r1)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No completed deliveries yet</div>'}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 2 — OC-Fault Late Orders</div>
+        <div class="kpi-value" style="color:${ocFaultLate.length===0?'var(--green)':'var(--red)'}">${ocFaultLate.length}</div>
+        <div class="kpi-sub">Late orders caused by OC · Target: as low as possible</div>
+        ${delivered.length>0?`<div class="rating-badge" style="background:${ratingColor(r1b)}20;color:${ratingColor(r1b)}">Rating ${r1b} · ${ratingLabel(r1b)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet</div>'}
+        ${customerChangedDate.length>0?`<div style="font-size:10px;color:var(--blue);margin-top:4px">👤 ${customerChangedDate.length} customer date change(s) excluded</div>`:''}
+      </div>
+    </div>
+    <div class="kpi-card" style="margin-bottom:10px">
+      <div class="kpi-label">KPI 3 — Avg SO-to-Delivery Days</div>
+      <div class="kpi-value" style="color:var(--navy)">${avgDays?avgDays.toFixed(1)+'d':'—'}</div>
+      <div class="kpi-sub">Average days from SO creation to actual delivery · Target: as short as possible${delivered.length>0?' · Based on '+delivered.length+' delivered SO(s)':''}</div>
+    </div>
+    <div class="kpi-card" style="margin-bottom:14px">
+      <div class="kpi-label">KPI 4 — SO Processing Rate (OC Received → Pass to SK)</div>
+      <div class="kpi-value" style="color:${ratingColor(r1c)}">${pct(ocProcessPct)}</div>
+      <div class="kpi-sub">${ocProcessOnTime}/${ocProcessDays.length} passed to SK within 1 day · Target ≥ 90% · Avg: ${avgOCProcess!==null?avgOCProcess.toFixed(1)+'d':'—'}</div>
+      ${ocProcessPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(ocProcessPct,1)*100).toFixed(1)}%;background:${ratingColor(r1c)}"></div></div>`:''}
+      ${r1c?`<div class="rating-badge" style="background:${ratingColor(r1c)}20;color:${ratingColor(r1c)}">Rating ${r1c} · ${ratingLabel(r1c)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet — fill OC Received Date when creating SO</div>'}
+    </div>
+
+    <!-- Operations Exe Handover Summary -->
+    ${avgHandover!==null?`
+    <div style="background:var(--purple-lt);border:1px solid #c4b5fd;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px">📊 Operations Exe Handover Summary (SO Date → OC Received Date)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div>
+          <div style="font-size:10px;color:var(--grey-500);text-transform:uppercase;font-weight:700">Avg Handover</div>
+          <div style="font-size:18px;font-weight:800;color:var(--navy);font-family:'JetBrains Mono',monospace">${avgHandover.toFixed(1)}d</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--grey-500);text-transform:uppercase;font-weight:700">Max Handover</div>
+          <div style="font-size:18px;font-weight:800;color:${maxHandover>3?'var(--red)':'var(--navy)'};font-family:'JetBrains Mono',monospace">${maxHandover}d</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--grey-500);text-transform:uppercase;font-weight:700">>3 Days Late</div>
+          <div style="font-size:18px;font-weight:800;color:${delayedHandover>0?'var(--red)':'var(--green)'};font-family:'JetBrains Mono',monospace">${delayedHandover}</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--purple);margin-top:8px;font-style:italic">This data reflects Operations Exe performance — use for their KPI evaluation</div>
+        </div>`:''}
     ${customerChangedDate.length>0?`<div style="background:var(--blue-lt);border:1px solid var(--blue-dim);border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">
       👤 <strong>${customerChangedDate.length} order(s)</strong> had delivery date changed by customer — not counted as OC fault in KPI
     </div>`:''}
@@ -2035,7 +2139,7 @@ function renderKPI(){
   }
 
   if(role==='SK'||role==='MGR'){
-    const skOrders=role==='SK'?mOrders.filter(o=>o.storeKeepers.includes(currentUser.name)):mOrders.filter(o=>o.storeKeepers&&o.storeKeepers.length>0);
+    const skOrders=role==='SK'?mOrders.filter(o=>o.storeKeepers&&o.storeKeepers.includes(currentUser.name)):mOrders.filter(o=>o.storeKeepers&&o.storeKeepers.length>0);
     const picked=skOrders.filter(o=>o.pickingDone);
     const accurate=picked.filter(o=>o.discrepancy!=='Yes'||o.discrepancyCause==='goods'); // goods issue = not SK's fault
     const withDiscrep=picked.filter(o=>o.discrepancy==='Yes');
@@ -2053,31 +2157,88 @@ function renderKPI(){
     const pickOnTarget=withDuration.filter(o=>daysBetween(o.passedToSK,o.pickingCompleted)<=1);
     const pickTargetPct=withDuration.length?pickOnTarget.length/withDuration.length:null;
     const r3=pickTargetPct===null?null:pickTargetPct>=1?4:pickTargetPct>=0.90?3:pickTargetPct>=0.75?2:1;
-    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">📦 Storekeeper KPIs${role==='MGR'?' (All SKs)':''}</div>
-    <div class="kpi-grid">
-      ${kpiCard('Orders Picked',picked.length,'picking completed',null,null)}
-      ${kpiCard('Stock Accuracy',pct(accPct),`${accurate.length}/${picked.length} no discrepancy`,r2,accPct)}
-      ${kpiCard('On-Time Picking',pct(pickTargetPct),`${pickOnTarget.length}/${withDuration.length} within 1 day`,r3,pickTargetPct)}
-      ${kpiCard('Avg Picking Days',avgPickDays!==null?avgPickDays.toFixed(1)+'d':'—','SO received → picking done',null,null)}
+    const scR=scPct===null?null:scPct>=1?4:scPct>=0.95?3:scPct>=0.80?2:1;
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">📦 Storekeeper KPIs</div>
+    <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 1 — Stock Accuracy Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r2)}">${pct(accPct)}</div>
+        <div class="kpi-sub">${accurate.length}/${picked.length} orders no picking error · Target ≥ 98%</div>
+        ${accPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(accPct,1)*100).toFixed(1)}%;background:${ratingColor(r2)}"></div></div>`:''}
+        ${r2?`<div class="rating-badge" style="background:${ratingColor(r2)}20;color:${ratingColor(r2)}">Rating ${r2} · ${ratingLabel(r2)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No completed picking yet</div>'}
+        ${skFaultDiscrep.length>0?`<div style="font-size:10px;color:var(--red);margin-top:4px">⚠️ ${skFaultDiscrep.length} picking error(s) counted</div>`:''}
+        ${goodsFaultDiscrep.length>0?`<div style="font-size:10px;color:var(--amber);margin-top:2px">🏷️ ${goodsFaultDiscrep.length} goods issue(s) excluded</div>`:''}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 2 — On-Time Picking</div>
+        <div class="kpi-value" style="color:${ratingColor(r3)}">${pct(pickTargetPct)}</div>
+        <div class="kpi-sub">${pickOnTarget.length}/${withDuration.length} within 1 day · Target ≥ 90%</div>
+        ${pickTargetPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(pickTargetPct,1)*100).toFixed(1)}%;background:${ratingColor(r3)}"></div></div>`:''}
+        ${r3?`<div class="rating-badge" style="background:${ratingColor(r3)}20;color:${ratingColor(r3)}">Rating ${r3} · ${ratingLabel(r3)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet</div>'}
+      </div>
+    </div>
+    <div class="kpi-card" style="margin-bottom:10px">
+      <div class="kpi-label">KPI 3 — Stock Card Updated</div>
+      <div class="kpi-value" style="color:${ratingColor(scR)}">${pct(scPct)}</div>
+      <div class="kpi-sub">${stockUpdated.length}/${picked.length} orders stock card updated · Target 100%</div>
+      ${scPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(scPct,1)*100).toFixed(1)}%;background:${ratingColor(scR)}"></div></div>`:''}
+      ${scR?`<div class="rating-badge" style="background:${ratingColor(scR)}20;color:${ratingColor(scR)}">Rating ${scR} · ${ratingLabel(scR)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet</div>'}
     </div>
     ${withDiscrep.length>0?`<div class="card" style="margin-bottom:14px"><div class="card-head"><span class="card-title">⚠️ Discrepancy Details (${withDiscrep.length})</span></div><div class="card-body" style="padding:8px 16px">${discrepList}</div></div>`:''}
     <hr class="divider">`;
+
+    // KPI 4: Discrepancy Rate
+    if(picked.length>0){
+      const discrepRate=picked.length?((skFaultDiscrep.length/picked.length)*100).toFixed(1)+'%':'—';
+      html+=`<div class="kpi-card" style="margin-bottom:10px">
+        <div class="kpi-label">KPI 4 — Discrepancy Rate (Picking Errors only)</div>
+        <div class="kpi-value" style="color:${skFaultDiscrep.length===0?'var(--green)':'var(--red)'}">${discrepRate}</div>
+        <div class="kpi-sub">${skFaultDiscrep.length} picking error(s) out of ${picked.length} orders · Target ≤ 2%</div>
+        ${skFaultDiscrep.length>0?`<div class="rating-badge" style="background:var(--red-lt);color:var(--red)">⚠️ Action required</div>`:`<div class="rating-badge" style="background:var(--green-lt);color:var(--green)">✅ No errors</div>`}
+      </div>`;
+    }
+
+    // KPI 5: Settlement Speed
+    if(withDiscrep.length>0){
+      const settled=withDiscrep.filter(o=>o.discrepancySettled&&o.pickingCompleted);
+      const settleDays=settled.map(o=>Math.max(0,daysBetween(o.pickingCompleted,o.discrepancySettled)));
+      const avgSettle=settleDays.length?(settleDays.reduce((a,b)=>a+b,0)/settleDays.length):null;
+      const pendingSettle=withDiscrep.filter(o=>!o.discrepancySettled).length;
+      html+=`<div class="kpi-card" style="margin-bottom:14px">
+        <div class="kpi-label">KPI 5 — Discrepancy Settlement Speed</div>
+        <div class="kpi-value" style="color:var(--navy)">${avgSettle!==null?avgSettle.toFixed(1)+'d':'—'}</div>
+        <div class="kpi-sub">${settled.length}/${withDiscrep.length} discrepancies settled · Target ≤ 1 day</div>
+        ${pendingSettle>0?`<div style="font-size:11px;color:var(--amber);margin-top:4px;font-weight:600">⏳ ${pendingSettle} pending settlement</div>`:''}
+      </div>`;
+    }
   }
 
   if(role==='LD'||role==='MGR'){
-    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName===currentUser.name):mOrders.filter(o=>o.driverName);
+    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName===currentUser.name||o.driverName===currentUser.username):mOrders.filter(o=>o.driverName);
     const delivered=dOrders.filter(o=>o.deliveredDate);
-    const onTime=delivered.filter(o=>o.requestedDate&&o.deliveredDate<=o.requestedDate);
+    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
     const noError=delivered.filter(o=>o.deliveryError!=='Yes');
     const otPct=delivered.length?onTime.length/delivered.length:null;
     const accPct=delivered.length?noError.length/delivered.length:null;
     const r3=otPct===null?null:otPct>=0.98?4:otPct>=0.95?3:otPct>=0.90?2:1;
     const r4=accPct===null?null:accPct>=1?4:accPct>=0.98?3:accPct>=0.95?2:1;
-    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">🚚 Lorry Driver KPIs${role==='MGR'?' (All Drivers)':''}</div>
-    <div class="kpi-grid">
-      ${kpiCard('Deliveries Made',delivered.length,'completed',null,null)}
-      ${kpiCard('On-Time Rate',pct(otPct),`${onTime.length}/${delivered.length} on time`,r3,otPct)}
-      ${kpiCard('Accuracy Rate',pct(accPct),`${noError.length}/${delivered.length} no error`,r4,accPct)}
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">🚚 Lorry Driver KPIs</div>
+    <div style="font-size:12px;color:var(--grey-500);margin-bottom:10px">Based on ${delivered.length} completed deliveries this period</div>
+    <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r3)}">${pct(otPct)}</div>
+        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
+        ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r3)}"></div></div>`:''}
+        ${r3?`<div class="rating-badge" style="background:${ratingColor(r3)}20;color:${ratingColor(r3)}">Rating ${r3} · ${ratingLabel(r3)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 2 — Delivery Accuracy Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r4)}">${pct(accPct)}</div>
+        <div class="kpi-sub">${noError.length}/${delivered.length} no delivery error · Target ≥ 98%</div>
+        ${accPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(accPct,1)*100).toFixed(1)}%;background:${ratingColor(r4)}"></div></div>`:''}
+        ${r4?`<div class="rating-badge" style="background:${ratingColor(r4)}20;color:${ratingColor(r4)}">Rating ${r4} · ${ratingLabel(r4)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
+      </div>
     </div>`;
   }
 
@@ -2097,7 +2258,14 @@ function kpiCard(label,value,sub,rating,pctVal){
   </div>`;
 }
 
-function kpiMonth(m){selectedMonth=m;document.getElementById('main-content').innerHTML=renderKPI()}
+let selectedQuarter=null;
+function kpiMonth(m){selectedMonth=m;selectedQuarter=null;document.getElementById('main-content').innerHTML=renderKPI()}
+function kpiQuarter(q,start,end){
+  selectedQuarter=q;selectedMonth=null;
+  // store quarter range for filtering
+  window._qStart=start;window._qEnd=end;
+  document.getElementById('main-content').innerHTML=renderKPI();
+}
 
 // ─────────────────────────────────────────────────────────
 // EXPORT TAB
