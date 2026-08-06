@@ -1262,9 +1262,9 @@ function renderSOCard(o){
     <div style="margin-top:6px;font-size:11px;color:var(--grey-400)">
       ${storeList!=='—'?`Storekeeper: ${esc(storeList)} · `:''}
       ${o.driverName?`Driver: ${esc(o.driverName)} · `:''}
-      ${o.poList&&o.poList.length?`<span style="color:var(--purple);font-weight:600">PO: ${o.poList.map(p=>esc(p.poNum)).join(', ')}</span> · `:''}
-      ${esc(o.remarks||'')}
+      ${o.poList&&o.poList.length?`<span style="color:var(--purple);font-weight:600">PO: ${o.poList.map(p=>esc(p.poNum)).join(', ')}</span>`:''}
     </div>
+    ${o.remarks?`<div style="margin-top:4px;font-size:12px;font-weight:700;color:var(--red)">⚠️ ${esc(o.remarks)}</div>`:''}
   </div>`;
 }
 
