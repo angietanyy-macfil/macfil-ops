@@ -2006,7 +2006,8 @@ function renderKPI(){
   </div>`;
 
   if(role==='OC'||role==='MGR'){
-    const myOrders=role==='OC'?mOrders.filter(o=>o.ocName===currentUser.name):mOrders;
+    // OC sees all orders (ocName filter removed — covers old data and shared responsibility)
+    const myOrders=mOrders;
     const delivered=myOrders.filter(o=>o.deliveredDate);
     // For OC KPI: if last date change was customer-requested, use original date for "fault" check
     // but use final requestedDate for on-time check (customer changed it, so new date is the target)
