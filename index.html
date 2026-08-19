@@ -893,6 +893,27 @@ function renderDashboard(){
   <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">Dashboard</div>
   <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${monthLabel(thisMth)} · ${thisYear}</div>
 
+  <!-- Today's Activity -->
+  ${(()=>{
+    const todayDate=myDate();
+    const soToday=allOrders.filter(o=>o.soDate===todayDate||o.ocReceivedDate===todayDate);
+    const pickToday=allOrders.filter(o=>o.pickingCompleted===todayDate);
+    const dispToday=allOrders.filter(o=>o.dispatchedDate===todayDate);
+    const delivToday=allOrders.filter(o=>o.deliveredDate===todayDate);
+    if(!soToday.length&&!pickToday.length&&!dispToday.length&&!delivToday.length){
+      return '<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:14px 16px;margin-bottom:14px;text-align:center;font-size:12px;color:var(--grey-400)">📋 No activity recorded today yet</div>';
+    }
+    const row=(o,detail,color)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:white;border:1px solid var(--grey-100);border-radius:7px;margin-bottom:4px;gap:8px"><div><span style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:12px;color:var(--navy)">'+esc(o.soNum)+'</span> <span style="font-size:12px;color:var(--grey-600)">'+esc(o.customer)+'</span></div><div style="font-size:11px;color:'+color+';font-weight:600;white-space:nowrap">'+detail+'</div></div>';
+    const sec=(title,icon,rows,color)=>rows.length===0?'':'<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+icon+' '+title+' ('+rows.length+')</div>'+rows+'</div>';
+    return '<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
+      +'<div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:12px">📅 Today — '+todayDate.split('-').reverse().join('/')+'</div>'
+      +sec('SO Created / Received','📋',soToday.map(o=>row(o,o.ocReceivedDate===todayDate?'OC Received':'SO Created','var(--blue)')).join(''),'var(--blue)')
+      +sec('Picking Completed','📦',pickToday.map(o=>row(o,'SK: '+(o.storeKeepers&&o.storeKeepers.length?esc(o.storeKeepers[0]):'—'),'var(--teal)')).join(''),'var(--teal)')
+      +sec('Dispatched','🚚',dispToday.map(o=>row(o,'Driver: '+esc(o.driverName||'—')+(o.dispatchedTime?' · '+o.dispatchedTime:''),'var(--amber)')).join(''),'var(--amber)')
+      +sec('Delivered','✅',delivToday.map(o=>row(o,o.deliveredTime||'Delivered','var(--green)')).join(''),'var(--green)')
+      +'</div>';
+  })()}
+
   <!-- Summary stats -->
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
     ${[
