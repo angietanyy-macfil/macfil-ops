@@ -1,0 +1,2464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MACFIL Operations Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --navy:     #0f2044;
+  --navy-md:  #1a3260;
+  --blue:     #2563eb;
+  --blue-lt:  #dbeafe;
+  --blue-dim: #93c5fd;
+  --teal:     #0d9488;
+  --teal-lt:  #ccfbf1;
+  --amber:    #b45309;
+  --amber-lt: #fef3c7;
+  --amber-br: #f59e0b;
+  --red:      #dc2626;
+  --red-lt:   #fee2e2;
+  --green:    #15803d;
+  --green-lt: #dcfce7;
+  --purple:   #7c3aed;
+  --purple-lt:#ede9fe;
+  --grey-50:  #f8fafc;
+  --grey-100: #f1f5f9;
+  --grey-200: #e2e8f0;
+  --grey-300: #cbd5e1;
+  --grey-400: #94a3b8;
+  --grey-500: #64748b;
+  --grey-600: #475569;
+  --grey-800: #1e293b;
+  --white:    #ffffff;
+  --r:        10px;
+  --shadow:   0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Inter',sans-serif;background:var(--grey-50);color:var(--grey-800);min-height:100vh;font-size:14px}
+
+/* ── Login screen ── */
+#login-screen{
+  min-height:100vh;
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-md) 60%,#1e4080 100%);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.login-box{
+  background:white;border-radius:16px;padding:28px 20px;
+  width:100%;max-width:420px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.login-logo{
+  width:52px;height:52px;border-radius:12px;
+  background:var(--blue);display:grid;place-items:center;
+  font-weight:800;font-size:18px;color:white;letter-spacing:.5px;
+  margin-bottom:20px;
+}
+.login-title{font-size:22px;font-weight:800;color:var(--navy);margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--grey-500);margin-bottom:28px}
+.login-label{font-size:11px;font-weight:700;color:var(--grey-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:block}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.role-btn{
+  padding:16px 12px;border-radius:10px;border:2px solid var(--grey-200);
+  background:var(--grey-50);cursor:pointer;text-align:center;
+  transition:all .15s;font-family:inherit;width:100%;
+  -webkit-tap-highlight-color:rgba(37,99,235,.2);
+  touch-action:manipulation;
+}
+.btn-enter{
+  touch-action:manipulation;
+  -webkit-appearance:none;
+}
+.role-btn:hover{border-color:var(--blue);background:var(--blue-lt)}
+.role-btn.selected{border-color:var(--blue);background:var(--blue-lt)}
+.role-icon{font-size:22px;margin-bottom:6px}
+.role-name{font-size:11px;font-weight:700;color:var(--grey-800)}
+.role-desc{font-size:10px;color:var(--grey-500);margin-top:2px}
+.login-name-row{margin-bottom:20px}
+.login-input{
+  width:100%;padding:10px 14px;border:2px solid var(--grey-200);
+  border-radius:8px;font-size:14px;font-family:inherit;
+  transition:border-color .15s;
+}
+.login-input:focus{outline:none;border-color:var(--blue)}
+.btn-enter{
+  width:100%;padding:16px;border-radius:8px;border:none;
+  background:var(--blue);color:white;font-size:16px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:background .15s;
+  -webkit-tap-highlight-color:transparent;min-height:52px;
+}
+.btn-enter:hover{background:#1d4ed8}
+.login-note{font-size:11px;color:var(--grey-400);text-align:center;margin-top:16px}
+
+/* ── App shell ── */
+#app{display:none}
+.topbar{
+  background:var(--navy);color:white;
+  padding:0 16px;height:52px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.topbar-brand{display:flex;align-items:center;gap:10px}
+.topbar-logo{width:30px;height:30px;border-radius:6px;background:var(--blue);display:grid;place-items:center;font-weight:800;font-size:12px;color:white}
+.topbar-title{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.topbar-user{display:flex;align-items:center;gap:8px}
+.user-chip{
+  background:rgba(255,255,255,.12);border-radius:20px;
+  padding:4px 12px;font-size:12px;font-weight:600;color:white;
+}
+.btn-logout{background:rgba(255,255,255,.1);border:none;color:white;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-logout:hover{background:rgba(255,255,255,.2)}
+
+/* ── Bottom nav (mobile) ── */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  background:white;border-top:1px solid var(--grey-200);
+  display:flex;z-index:100;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.bnav-btn{
+  flex:1;padding:10px 4px 8px;border:none;background:none;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  cursor:pointer;color:var(--grey-400);font-family:inherit;
+  transition:color .15s;
+}
+.bnav-btn.active{color:var(--blue)}
+.bnav-icon{font-size:20px;line-height:1}
+.bnav-label{font-size:10px;font-weight:600}
+
+/* ── Main content ── */
+.main{padding:12px;padding-bottom:80px;max-width:900px;margin:0 auto}
+
+/* ── Cards ── */
+.card{background:white;border:1px solid var(--grey-200);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+.card-head{
+  padding:13px 16px;background:var(--grey-50);
+  border-bottom:1px solid var(--grey-200);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.card-title{font-size:13px;font-weight:700;color:var(--navy)}
+.card-body{padding:14px}
+
+/* ── Pipeline stages ── */
+.pipeline{display:flex;gap:0;overflow-x:auto;padding-bottom:2px;margin-bottom:14px}
+.stage{
+  flex:1;min-width:110px;padding:10px 8px;text-align:center;
+  background:var(--grey-100);border-right:2px solid white;
+  position:relative;cursor:default;
+}
+.stage:last-child{border-right:none;border-radius:0 8px 8px 0}
+.stage:first-child{border-radius:8px 0 0 8px}
+.stage.active{background:var(--blue);color:white}
+.stage.done{background:var(--teal);color:white}
+.stage.held{background:var(--amber-lt);color:var(--amber)}
+.stage.cancelled{background:var(--red-lt);color:var(--red)}
+.stage-icon{font-size:16px;margin-bottom:3px}
+.stage-name{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.stage-count{font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;margin-bottom:2px}
+
+/* ── SO cards (mobile-friendly list) ── */
+.so-list{display:flex;flex-direction:column;gap:10px}
+.so-card{
+  background:white;border:1px solid var(--grey-200);border-radius:8px;
+  padding:14px;transition:box-shadow .15s;cursor:pointer;
+}
+.so-card:hover{box-shadow:var(--shadow-md)}
+.so-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.so-num{font-size:14px;font-weight:700;color:var(--navy);font-family:'JetBrains Mono',monospace}
+.so-customer{font-size:12px;color:var(--grey-600);margin-top:2px}
+.so-stages{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.stage-pill{
+  padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.3px;
+}
+.pill-pending{background:var(--grey-100);color:var(--grey-500)}
+.pill-wip{background:var(--blue-lt);color:var(--blue)}
+.pill-done{background:var(--teal-lt);color:var(--teal)}
+.pill-hold{background:var(--amber-lt);color:var(--amber)}
+.pill-cancel{background:var(--red-lt);color:var(--red)}
+.pill-partial{background:var(--purple-lt);color:var(--purple)}
+.so-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:11px}
+.so-meta-item{font-size:11px;color:var(--grey-500)}
+.so-meta-item strong{color:var(--grey-800)}
+.so-days{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;
+  font-family:'JetBrains Mono',monospace;
+}
+.days-ok{background:var(--green-lt);color:var(--green)}
+.days-warn{background:var(--amber-lt);color:var(--amber)}
+.days-over{background:var(--red-lt);color:var(--red)}
+.days-open{background:var(--blue-lt);color:var(--blue)}
+
+/* ── Forms ── */
+.form-section{margin-bottom:16px}
+.form-section-title{font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--grey-100)}
+.form-row{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px}
+.form-row.single{grid-template-columns:1fr}
+.form-row.triple{grid-template-columns:1fr}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:11px;font-weight:700;color:var(--grey-600);text-transform:uppercase;letter-spacing:.3px}
+.fg input,.fg select,.fg textarea{
+  padding:9px 11px;border:1.5px solid var(--grey-200);border-radius:7px;
+  font-size:13px;font-family:inherit;color:var(--grey-800);background:white;
+  transition:border-color .15s;width:100%;
+}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe60}
+.fg input:disabled,.fg select:disabled{background:var(--grey-50);color:var(--grey-400)}
+
+/* ── Buttons ── */
+.btn{padding:9px 16px;border-radius:7px;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px;font-family:inherit}
+.btn-primary{background:var(--blue);color:white}
+.btn-primary:hover{background:#1d4ed8}
+.btn-teal{background:var(--teal);color:white}
+.btn-teal:hover{background:#0f766e}
+.btn-ghost{background:var(--grey-100);color:var(--grey-600)}
+.btn-ghost:hover{background:var(--grey-200)}
+.btn-danger{background:var(--red-lt);color:var(--red)}
+.btn-danger:hover{background:#fecaca}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-xs{padding:4px 8px;font-size:11px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ── KPI stats ── */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.kpi-card{background:white;border:1px solid var(--grey-200);border-radius:8px;padding:14px;box-shadow:var(--shadow)}
+.kpi-label{font-size:10px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--navy);line-height:1}
+.kpi-sub{font-size:11px;color:var(--grey-400);margin-top:4px}
+.kpi-bar{height:4px;background:var(--grey-100);border-radius:2px;margin-top:8px;overflow:hidden}
+.kpi-fill{height:100%;border-radius:2px;transition:width .5s}
+.rating-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;margin-top:6px}
+
+/* ── Modal / Drawer ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.overlay.hidden{display:none}
+.drawer{
+  background:white;border-radius:16px 16px 0 0;
+  width:100%;max-width:600px;max-height:92vh;
+  overflow-y:auto;padding:16px 14px 40px;
+  animation:slideUp .2s ease;
+  -webkit-overflow-scrolling:touch;
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.drawer-handle{width:40px;height:4px;background:var(--grey-200);border-radius:2px;margin:0 auto 16px}
+.drawer-title{font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px}
+.drawer-sub{font-size:12px;color:var(--grey-500);margin-bottom:20px}
+
+/* ── Badges & misc ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-blue{background:var(--blue-lt);color:var(--blue)}
+.badge-green{background:var(--green-lt);color:var(--green)}
+.badge-red{background:var(--red-lt);color:var(--red)}
+.badge-amber{background:var(--amber-lt);color:var(--amber)}
+.badge-grey{background:var(--grey-100);color:var(--grey-500)}
+.badge-teal{background:var(--teal-lt);color:var(--teal)}
+.badge-purple{background:var(--purple-lt);color:var(--purple)}
+
+.divider{border:none;border-top:1px solid var(--grey-100);margin:14px 0}
+.mono{font-family:'JetBrains Mono',monospace}
+.hidden{display:none!important}
+.text-sm{font-size:12px}
+.text-xs{font-size:11px}
+.text-grey{color:var(--grey-500)}
+.empty-state{text-align:center;padding:40px 20px;color:var(--grey-400);font-size:13px}
+.empty-icon{font-size:36px;margin-bottom:8px}
+
+/* ── Month filter ── */
+.month-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;overflow-x:auto}
+.mchip{padding:5px 13px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--grey-200);background:white;cursor:pointer;white-space:nowrap;transition:all .15s}
+.mchip:hover{border-color:var(--blue);color:var(--blue)}
+.mchip.active{background:var(--blue);color:white;border-color:var(--blue)}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:76px;left:50%;transform:translateX(-50%);
+  background:var(--grey-800);color:white;padding:10px 20px;border-radius:8px;
+  font-size:13px;font-weight:600;z-index:300;
+  animation:fadeIn .2s ease;white-space:nowrap;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes slideInRight{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Step tracker inline ── */
+.step-track{display:flex;align-items:center;gap:0;margin:12px 0}
+.step-node{display:flex;flex-direction:column;align-items:center;flex:1}
+.step-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;border:2px solid var(--grey-300);background:white;color:var(--grey-400);position:relative;z-index:1}
+.step-dot.done{background:var(--teal);border-color:var(--teal);color:white}
+.step-dot.active{background:var(--blue);border-color:var(--blue);color:white}
+.step-line{flex:1;height:2px;background:var(--grey-200);margin-top:-14px}
+.step-line.done{background:var(--teal)}
+.step-lbl{font-size:8px;font-weight:700;color:var(--grey-400);text-transform:uppercase;margin-top:4px;text-align:center;letter-spacing:.1px;line-height:1.2;max-width:44px}
+.step-lbl.done{color:var(--teal)}
+.step-lbl.active{color:var(--blue)}
+
+/* ── Scrollable table (desktop fallback) ── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--navy);color:white;padding:9px 10px;text-align:left;font-size:11px;font-weight:700;white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--grey-100);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--grey-50)}
+
+@media(min-width:560px){
+  .form-row{grid-template-columns:1fr 1fr}
+  .form-row.triple{grid-template-columns:1fr 1fr 1fr}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .role-grid{grid-template-columns:repeat(4,1fr)}
+}
+@media(min-width:760px){
+  .form-row{grid-template-columns:1fr 1fr 1fr}
+  .kpi-grid{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOGIN ══════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">MF</div>
+    <div class="login-title">MACFIL Operations</div>
+    <div class="login-sub">Delivery & Warehouse Tracker</div>
+    <div style="margin-bottom:20px;margin-top:24px">
+      <div class="fg" style="margin-bottom:12px">
+        <label>Username</label>
+        <input class="login-input" type="text" id="login-username" placeholder="Enter username" autocomplete="username" autocapitalize="none" autocorrect="off">
+      </div>
+      <div class="fg">
+        <label>Password</label>
+        <div style="position:relative">
+          <input class="login-input" type="password" id="login-password" placeholder="Enter password" autocomplete="current-password" style="padding-right:44px">
+          <button type="button" onclick="togglePwd()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--grey-400)" id="pwd-toggle">👁</button>
+        </div>
+      </div>
+      <div id="login-error" style="font-size:12px;color:var(--red);margin-top:8px;min-height:18px;font-weight:600"></div>
+    </div>
+    <button class="btn-enter" id="enter-btn" onclick="handleLogin()" ontouchend="handleLogin()" type="button">Login →</button>
+    <div class="login-note">MACFIL SDN BHD · Contact Manager for access</div>
+  </div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-logo">MF</div>
+      <div class="topbar-title">Operations Tracker</div>
+    </div>
+    <div class="topbar-user">
+      <span id="sync-status" style="font-size:11px;color:#94a3b8;"></span>
+      <div class="user-chip" id="user-chip"></div>
+      <button class="btn-logout" onclick="logout()">Exit</button>
+    </div>
+  </div>
+  <div id="notif-banner" class="hidden" style="background:#f59e0b;color:white;padding:10px 16px;font-size:13px;font-weight:600;text-align:center;cursor:pointer;" onclick="this.classList.add('hidden')"></div>
+  <!-- Notification popup -->
+  <div id="notif-popup" class="hidden" style="position:fixed;top:60px;right:12px;left:12px;max-width:360px;margin:0 auto;z-index:500;pointer-events:none">
+    <div id="notif-popup-inner" style="background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:14px 16px;display:flex;align-items:flex-start;gap:12px;pointer-events:all;border-left:4px solid var(--blue)">
+      <div id="notif-icon" style="font-size:22px;line-height:1;flex-shrink:0">🔔</div>
+      <div style="flex:1;min-width:0">
+        <div id="notif-title" style="font-size:12px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Notification</div>
+        <div id="notif-msg" style="font-size:13px;font-weight:600;color:var(--grey-800);line-height:1.4"></div>
+        <div id="notif-time" style="font-size:11px;color:var(--grey-400);margin-top:4px"></div>
+      </div>
+      <button onclick="closeNotif()" style="background:none;border:none;font-size:18px;color:var(--grey-400);cursor:pointer;flex-shrink:0;padding:0;line-height:1">✕</button>
+    </div>
+  </div>
+
+  <div class="main" id="main-content"></div>
+
+  <nav class="bottom-nav" id="bottom-nav"></nav>
+</div>
+
+<!-- ══════════ DRAWER ══════════ -->
+<div class="overlay hidden" id="overlay" onclick="closeDrawer(event)">
+  <div class="drawer" id="drawer"></div>
+</div>
+
+<!-- ══════════ TOAST ══════════ -->
+<div class="toast hidden" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// SUPABASE SETUP
+// ─────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://yabnprhyjkbqwylrvcjo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rPH8vzc5szNdIwztYlodWg_qVdukz_e';
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────
+let db = {orders:[]};
+let currentUser = null;
+let currentTab = 'orders';
+let selectedMonth = null;
+let realtimeChannel = null;
+let pendingNotifications = [];
+
+async function loadDB(){
+  try {
+    showSyncStatus('loading');
+    const {data, error} = await _sb.from('orders').select('id,data');
+    if(error){
+      console.error('Supabase error:',JSON.stringify(error));
+      throw new Error(error.message||JSON.stringify(error));
+    }
+    db.orders = (data||[]).map(r=>({id:r.id,...r.data}));
+    showSyncStatus('ok');
+  } catch(e) {
+    console.error('Load error:',e.message||e);
+    showSyncStatus('error');
+    showToast('⚠️ DB Error: '+( e.message||'Check console'));
+  }
+}
+
+async function saveDB(changedOrder){
+  try {
+    showSyncStatus('saving');
+    const {id,...data} = changedOrder;
+    const {error} = await _sb.from('orders').upsert({id, data, updated_at: new Date().toISOString()});
+    if(error) throw new Error(error.message||JSON.stringify(error));
+    showSyncStatus('ok');
+  } catch(e) {
+    console.error('Save error:',e.message||e);
+    showSyncStatus('error');
+    showToast('⚠️ Save failed: '+(e.message||'Check connection'));
+  }
+}
+
+async function deleteFromDB(id){
+  try {
+    await _sb.from('orders').delete().eq('id',id);
+    showSyncStatus('ok');
+  } catch(e) {
+    console.error('Delete error:',e);
+  }
+}
+
+function showSyncStatus(s){
+  const el=document.getElementById('sync-status');
+  if(!el) return;
+  const map={loading:'⏳ Loading...',saving:'💾 Saving...',ok:'✅ Synced',error:'⚠️ Sync error'};
+  const col={loading:'#94a3b8',saving:'#2563eb',ok:'#15803d',error:'#dc2626'};
+  el.textContent=map[s]||'';
+  el.style.color=col[s]||'#94a3b8';
+}
+
+function subscribeRealtime(){
+  if(realtimeChannel) _sb.removeChannel(realtimeChannel);
+  realtimeChannel = _sb.channel('orders-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'orders'},
+      payload => handleRealtimeChange(payload))
+    .subscribe();
+}
+
+// ── AUTO PING (keep Supabase awake, triggers if idle >5 days) ─────────────
+const PING_KEY = 'macfil_last_ping';
+async function pingSupabase(){
+  try {
+    await _sb.from('orders').select('id').limit(1);
+    localStorage.setItem(PING_KEY, Date.now().toString());
+    console.log('Supabase pinged at', new Date().toLocaleString('en-MY'));
+  } catch(e){ console.log('Ping failed:', e.message); }
+}
+function startAutoPing(){
+  const last = parseInt(localStorage.getItem(PING_KEY)||'0');
+  const daysSince = (Date.now()-last)/(1000*60*60*24);
+  // ping immediately if >5 days since last ping
+  if(daysSince>=5) pingSupabase();
+  // then ping every 4 hours while app is open
+  setInterval(pingSupabase, 4*60*60*1000);
+}
+
+function handleRealtimeChange(payload){
+  const event = payload.eventType;
+  const row = payload.new || payload.old;
+  if(!row) return;
+
+  const nd = row.data || {};
+  const od = payload.old?.data || {};
+  const role = currentUser?.role;
+
+  if(event==='DELETE'){
+    db.orders = db.orders.filter(o=>o.id!==row.id);
+  } else {
+    const order = {id:row.id,...nd};
+    const idx = db.orders.findIndex(o=>o.id===row.id);
+    if(idx>=0) db.orders[idx]=order;
+    else db.orders.push(order);
+
+    if(event==='INSERT'){
+      // New SO created — notify SK and MGR
+      if(role==='SK'||role==='MGR')
+        showNotification('📋 New SO created: '+nd.soNum+' — '+nd.customer,'oc');
+    }
+
+    if(event==='UPDATE'){
+      // OC passed to SK → notify SK
+      if((role==='SK'||role==='MGR') && nd.passedToSK && !od.passedToSK)
+        showNotification('📬 SO passed to you: '+nd.soNum+' — '+nd.customer,'sk');
+
+      // OC keyed GR → notify SK
+      if((role==='SK'||role==='MGR') && nd.poList && od.poList){
+        const newGR = nd.poList.filter((p,i)=>p.grNum && !(od.poList[i]?.grNum));
+        newGR.forEach(p=>showNotification('📥 GR received: '+p.poNum+' ('+p.supplier+') — '+nd.soNum+' ready to pick!','gr'));
+      }
+
+      // OC updated DO/INV → notify SK & LD
+      if((role==='SK'||role==='LD'||role==='MGR') && nd.doNum && !od.doNum)
+        showNotification('📄 DO issued: '+nd.doNum+' for '+nd.soNum+' — ready to dispatch','oc');
+
+      // OC put on Hold → notify SK
+      if((role==='SK'||role==='MGR') && nd.status==='Hold' && od.status!=='Hold')
+        showNotification('⏸️ SO on Hold: '+nd.soNum+' — '+nd.customer,'warning');
+
+      // SK started picking → notify OC & MGR
+      if((role==='OC'||role==='MGR') && nd.pickingStarted && !od.pickingStarted)
+        showNotification('📦 Picking started: '+nd.soNum+' — '+nd.customer,'sk');
+
+      // SK completed picking → notify OC & MGR
+      if((role==='OC'||role==='MGR') && nd.pickingCompleted && !od.pickingCompleted)
+        showNotification('✅ Picking done: '+nd.soNum+' is Ready to Ship!','success');
+
+      // SK found discrepancy → notify OC & MGR
+      if((role==='OC'||role==='MGR') && nd.discrepancy==='Yes' && od.discrepancy!=='Yes')
+        showNotification('⚠️ Discrepancy found: '+nd.soNum+' — '+( nd.discrepancyCause==='sk'?'Picking Error':'Goods Issue'),'warning');
+
+      // SK settled discrepancy → notify OC
+      if((role==='OC'||role==='MGR') && nd.discrepancySettled && !od.discrepancySettled)
+        showNotification('✅ Discrepancy settled: '+nd.soNum+' is now Ready to Ship','success');
+
+      // LD marked delivered → notify OC & MGR
+      if((role==='OC'||role==='MGR') && nd.deliveredDate && !od.deliveredDate)
+        showNotification('🚚 Delivered: '+nd.soNum+' — '+nd.customer+(nd.deliveredTime?' ('+nd.deliveredTime+')':''),'ld');
+
+      // LD reported delivery error → notify OC & MGR
+      if((role==='OC'||role==='MGR') && nd.deliveryError==='Yes' && od.deliveryError!=='Yes')
+        showNotification('❌ Delivery error: '+nd.soNum+' — '+nd.deliveryErrorNote,'warning');
+    }
+  }
+
+  // Refresh current view - but NOT if user is typing in a form
+  if(currentTab==='orders'){
+    // Check if user is actively filling the New SO form
+    const soInput = document.getElementById('n-so');
+    const custInput = document.getElementById('n-cust');
+    const isTyping = (soInput && soInput.value.trim()!=='') ||
+                     (custInput && custInput.value.trim()!=='');
+    if(!isTyping){
+      // Safe to re-render - save scroll position
+      const scrollY = window.scrollY;
+      document.getElementById('main-content').innerHTML=renderOrders();
+      window.scrollTo(0, scrollY);
+    }
+    // If typing, just silently update db.orders without re-rendering
+    // The SO list will refresh next time they navigate away and back
+  } else if(currentTab==='kpi'){
+    document.getElementById('main-content').innerHTML=renderKPI();
+  } else if(currentTab==='dashboard'){
+    document.getElementById('main-content').innerHTML=renderDashboard();
+  }
+}
+
+let notifQueue = [];
+let notifShowing = false;
+
+function showNotification(msg, type='info'){
+  notifQueue.push({msg, type});
+  if(!notifShowing) processNotifQueue();
+}
+
+function processNotifQueue(){
+  if(!notifQueue.length){notifShowing=false;return;}
+  notifShowing=true;
+  const {msg, type} = notifQueue.shift();
+
+  const icons={info:'🔔',success:'✅',warning:'⚠️',sk:'📦',ld:'🚚',oc:'📋',gr:'📥'};
+  const colors={info:'var(--blue)',success:'var(--green)',warning:'var(--amber)',sk:'var(--teal)',ld:'var(--amber)',oc:'var(--blue)',gr:'var(--purple)'};
+
+  const popup = document.getElementById('notif-popup');
+  const inner = document.getElementById('notif-popup-inner');
+  const iconEl = document.getElementById('notif-icon');
+  const msgEl  = document.getElementById('notif-msg');
+  const timeEl = document.getElementById('notif-time');
+
+  if(!popup) return;
+  iconEl.textContent = icons[type]||'🔔';
+  msgEl.textContent  = msg;
+  timeEl.textContent = new Date().toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
+  inner.style.borderLeftColor = colors[type]||'var(--blue)';
+
+  // Play sound
+  playNotifSound(type);
+
+  popup.classList.remove('hidden');
+  popup.style.animation='none';
+  popup.offsetHeight; // reflow
+  popup.style.animation='slideInRight .3s ease';
+
+  setTimeout(()=>{
+    popup.classList.add('hidden');
+    setTimeout(processNotifQueue, 400);
+  }, 5000);
+}
+
+function closeNotif(){
+  const popup=document.getElementById('notif-popup');
+  if(popup) popup.classList.add('hidden');
+  notifShowing=false;
+  setTimeout(processNotifQueue,300);
+}
+
+function playNotifSound(type){
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const freqs = {
+      success:[523,659,784], // C-E-G happy
+      warning:[440,370],     // descending
+      sk:[523,784],          // two-tone
+      ld:[440,523,659],      // ascending
+      gr:[784,659,523],      // descending
+      info:[523,659],        // two-tone
+    };
+    const notes = freqs[type]||freqs.info;
+    const dur = 0.12;
+
+    notes.forEach((freq, i) => {
+      const o2 = ctx.createOscillator();
+      const g2 = ctx.createGain();
+      o2.connect(g2); g2.connect(ctx.destination);
+      o2.frequency.value = freq;
+      o2.type = 'sine';
+      g2.gain.setValueAtTime(0, ctx.currentTime + i*dur);
+      g2.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i*dur + 0.02);
+      g2.gain.linearRampToValueAtTime(0, ctx.currentTime + i*dur + dur);
+      o2.start(ctx.currentTime + i*dur);
+      o2.stop(ctx.currentTime + i*dur + dur + 0.05);
+    });
+  } catch(e){ /* silent fail if audio blocked */ }
+}
+
+// ─────────────────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────────────────
+// Auth state
+let selectedRole = null;
+let currentUsers = []; // cached from Supabase
+
+function togglePwd(){
+  const inp=document.getElementById('login-password');
+  const btn=document.getElementById('pwd-toggle');
+  if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
+  else{inp.type='password';btn.textContent='👁';}
+}
+function handleLogin(){
+  const btn=document.getElementById('enter-btn');
+  if(!btn||btn.disabled) return;
+  const username=document.getElementById('login-username').value.trim().toLowerCase();
+  const password=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-error');
+  errEl.textContent='';
+  if(!username||!password){errEl.textContent='Please enter username and password';return}
+  btn.textContent='Logging in...';
+  btn.disabled=true;
+  setTimeout(function(){
+    doLogin(username,password).catch(function(e){
+      console.error(e);
+      btn.textContent='Login →';
+      btn.disabled=false;
+      errEl.textContent='Connection error. Please try again.';
+    });
+  },100);
+}
+
+async function doLogin(username, password){
+  const errEl=document.getElementById('login-error');
+  const btn=document.getElementById('enter-btn');
+  try{
+    // Check credentials against Supabase users table
+    const {data,error}=await _sb.from('users')
+      .select('*')
+      .eq('username',username)
+      .eq('password',password)
+      .eq('active',true)
+      .single();
+    if(error||!data){
+      errEl.textContent='❌ Wrong username or password';
+      btn.textContent='Login →';btn.disabled=false;
+      return;
+    }
+    currentUser={role:data.role,name:data.full_name,username:data.username,userId:data.id};
+  } catch(e){
+    errEl.textContent='❌ Login failed: '+e.message;
+    btn.textContent='Login →';btn.disabled=false;
+    return;
+  }
+
+  // Hide login, show app immediately
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('user-chip').textContent=roleIcon(currentUser.role)+' '+currentUser.name;
+  buildNav();
+  switchTab('dashboard'); // show dashboard first
+
+  // Load data in background with timeout
+  try {
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000));
+    await Promise.race([loadDB(), timeout]);
+    subscribeRealtime();
+    startAutoPing();
+    switchTab('dashboard'); // refresh with data
+  } catch(e) {
+    showToast('⚠️ Could not load data — check internet connection');
+    showSyncStatus('error');
+  }
+
+  // btn already declared above
+  const enterBtn=document.getElementById('enter-btn');
+  if(enterBtn){enterBtn.textContent='Login →';enterBtn.disabled=false;}
+}
+function logout(){
+  if(realtimeChannel) _sb.removeChannel(realtimeChannel);
+  currentUser=null;selectedRole=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-username').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-error').textContent='';
+  document.getElementById('enter-btn').textContent='Login →';
+  document.getElementById('enter-btn').disabled=false;
+}
+function roleIcon(r){return{OC:'📋',SK:'📦',LD:'🚚',MGR:'👑'}[r]||''}
+function roleName(r){return{OC:'Operations Coordinator',SK:'Storekeeper',LD:'Lorry Driver',MGR:'Manager'}[r]||r}
+
+// ─────────────────────────────────────────────────────────
+// NAV
+// ─────────────────────────────────────────────────────────
+function buildNav(){
+  const tabs = {
+    OC:  [{id:'dashboard',icon:'📈',label:'Dashboard'},{id:'orders',icon:'📋',label:'Orders'},{id:'kpi',icon:'📊',label:'My KPI'},{id:'export',icon:'⬇',label:'Export'}],
+    SK:  [{id:'dashboard',icon:'📈',label:'Dashboard'},{id:'orders',icon:'📦',label:'Orders'},{id:'kpi',icon:'📊',label:'My KPI'},{id:'export',icon:'⬇',label:'Export'}],
+    LD:  [{id:'dashboard',icon:'📈',label:'Dashboard'},{id:'orders',icon:'🚚',label:'Orders'},{id:'kpi',icon:'📊',label:'My KPI'},{id:'export',icon:'⬇',label:'Export'}],
+    MGR: [{id:'dashboard',icon:'📈',label:'Dashboard'},{id:'orders',icon:'📋',label:'Orders'},{id:'kpi',icon:'📊',label:'All KPI'},{id:'export',icon:'⬇',label:'Export'},{id:'admin',icon:'⚙️',label:'Admin'}],
+  }[currentUser.role];
+  document.getElementById('bottom-nav').innerHTML = tabs.map(t=>`
+    <button class="bnav-btn" id="bnav-${t.id}" onclick="switchTab('${t.id}')">
+      <span class="bnav-icon">${t.icon}</span>
+      <span class="bnav-label">${t.label}</span>
+    </button>`).join('');
+}
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('bnav-'+tab);
+  if(btn) btn.classList.add('active');
+  const mc=document.getElementById('main-content');
+  if(tab==='dashboard') mc.innerHTML=renderDashboard();
+  else if(tab==='orders') mc.innerHTML=renderOrders();
+  else if(tab==='kpi') mc.innerHTML=renderKPI();
+  else if(tab==='export') mc.innerHTML=renderExport();
+  else if(tab==='admin'){mc.innerHTML=renderAdmin();setTimeout(loadUserList,100);}
+}
+
+// ─────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────
+function fmt(d){if(!d)return'—';const[y,m,day]=d.split('-');return`${day}/${m}/${y}`}
+function daysBetween(a,b){if(!a||!b)return null;return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))}
+function effectiveReqDate(o){return o.requestedDateRev2||o.requestedDateRev1||o.requestedDate||null;}
+function today(){return new Date().toISOString().slice(0,10)}
+function getMYT(){
+  // Get current Malaysia Time (UTC+8) correctly
+  const now = new Date();
+  // Use toLocaleString with Malaysia timezone for accuracy
+  const mytStr = now.toLocaleString('en-MY', {timeZone:'Asia/Kuala_Lumpur'});
+  return new Date(mytStr);
+}
+function myTime(){
+  // Malaysia Time 12-hour format with AM/PM
+  const now = new Date();
+  return now.toLocaleTimeString('en-MY', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }); // e.g. "02:27 PM"
+}
+function myDate(){
+  // Malaysia date YYYY-MM-DD
+  const now = new Date();
+  return now.toLocaleDateString('en-CA', {timeZone: 'Asia/Kuala_Lumpur'}); // en-CA gives YYYY-MM-DD
+}
+function myDateTime(){
+  return myDate()+' '+myTime();
+}
+function monthLabel(ym){if(!ym)return'';const[y,m]=ym.split('-');const n=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${n[+m-1]} ${y}`}
+function getMonths(){return[...new Set(db.orders.map(o=>o.soDate.slice(0,7)))].sort().reverse()}
+function pct(v){return v===null?'—':(v*100).toFixed(1)+'%'}
+function ratingColor(r){return['','#dc2626','#b45309','#2563eb','#15803d'][r]||'#94a3b8'}
+function ratingLabel(r){return['','Below Expectation','Meeting Expectation','Above Expectation','Outstanding'][r]||'—'}
+function hasUnreceivedPO(o){
+  // returns true if SO has POs and at least one has no GR yet
+  return o.poList && o.poList.length>0 && o.poList.some(p=>!p.grNum);
+}
+function allGRReceived(o){
+  // no POs = no need to wait; all POs have GR = ok
+  return !o.poList || o.poList.length===0 || o.poList.every(p=>p.grNum);
+}
+function stageOf(o){
+  if(o.status==='Cancelled') return 'cancelled';
+  if(o.deliveredDate) return 'delivered';
+  if(o.dispatchedDate) return 'dispatched';
+  if(o.doNum && (o.pickingDone||o.pickingCompleted||o.discrepancySettled)) return 'ready';
+  if(o.discrepancySettled) return 'pendingDO'; // settled but no DO yet
+  if(o.pickingCompleted && o.discrepancy==='Yes' && !o.discrepancySettled) return 'pendingDiscrep';
+  if(o.pickingCompleted) return 'pendingDO'; // picking done but OC hasn't issued DO yet
+  if(o.pickingDone) return 'pendingDO';
+  if(o.pickingStarted) return 'picking';
+  if(o.passedToSK && hasUnreceivedPO(o)) return 'awaitingGoods';
+  if(o.passedToSK) return 'pendingSK';
+  return 'pendingOC';
+}
+function stageLabel(s){return{pendingOC:'Pending (OC)',pendingSK:'Pending (SK)',awaitingGoods:'Awaiting Goods',picking:'Picking',pendingDiscrep:'Pending Discrepancy',pendingDO:'Pending DO',ready:'Ready to Ship',dispatched:'Dispatched',delivered:'Delivered',cancelled:'Cancelled'}[s]||s}
+function stagePillClass(s){return{pendingOC:'pill-pending',pendingSK:'pill-hold',awaitingGoods:'pill-hold',picking:'pill-wip',pendingDiscrep:'pill-hold',pendingDO:'pill-hold',ready:'pill-wip',dispatched:'pill-wip',delivered:'pill-done',cancelled:'pill-cancel'}[s]||'pill-pending'}
+function showToast(msg,ms=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.remove('hidden');
+  setTimeout(()=>t.classList.add('hidden'),ms);
+}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function daysDisplay(n,target){
+  if(n===null) return`<span class="so-days days-open">In progress</span>`;
+  const cls=n<=target?'days-ok':n<=target+2?'days-warn':'days-over';
+  return`<span class="so-days ${cls}">${n}d</span>`;
+}
+
+// ─────────────────────────────────────────────────────────
+// ORDERS TAB
+// ─────────────────────────────────────────────────────────
+function renderDashboard(){
+  const now = new Date();
+  const thisMth = now.toLocaleDateString('en-CA',{timeZone:'Asia/Kuala_Lumpur'}).slice(0,7);
+  const thisYear = thisMth.slice(0,4);
+
+  const allOrders = db.orders;
+  const mthOrders = allOrders.filter(o=>o.soDate.startsWith(thisMth));
+  const yrOrders  = allOrders.filter(o=>o.soDate.startsWith(thisYear));
+
+  // Pending (not yet delivered)
+  const pending = allOrders.filter(o=>!o.deliveredDate && o.status!=='Cancelled');
+  const pendingByStage = {};
+  pending.forEach(o=>{
+    const s=stageOf(o);
+    pendingByStage[s]=(pendingByStage[s]||0)+1;
+  });
+
+  // Top customers this month
+  const mthCustMap={};
+  mthOrders.forEach(o=>{mthCustMap[o.customer]=(mthCustMap[o.customer]||0)+1});
+  const topMth=Object.entries(mthCustMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Top customers this year
+  const yrCustMap={};
+  yrOrders.forEach(o=>{yrCustMap[o.customer]=(yrCustMap[o.customer]||0)+1});
+  const topYr=Object.entries(yrCustMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Pending customers (not delivered)
+  const pendCustMap={};
+  pending.forEach(o=>{pendCustMap[o.customer]=(pendCustMap[o.customer]||0)+1});
+  const pendCusts=Object.entries(pendCustMap).sort((a,b)=>b[1]-a[1]);
+
+  const maxMth=topMth.length?topMth[0][1]:1;
+  const maxYr=topYr.length?topYr[0][1]:1;
+
+  function bar(val,max,color){
+    const w=Math.round((val/max)*100);
+    return `<div style="flex:1;background:var(--grey-100);border-radius:4px;height:8px;overflow:hidden"><div style="width:${w}%;height:100%;background:${color};border-radius:4px;transition:width .4s"></div></div>`;
+  }
+
+  return `
+  <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">Dashboard</div>
+  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${monthLabel(thisMth)} · ${thisYear}</div>
+
+  <!-- Today's Activity -->
+  ${(()=>{
+    const todayDate=myDate();
+    const soToday=allOrders.filter(o=>o.soDate===todayDate||o.ocReceivedDate===todayDate);
+    const pickToday=allOrders.filter(o=>o.pickingCompleted===todayDate);
+    const dispToday=allOrders.filter(o=>o.dispatchedDate===todayDate);
+    const delivToday=allOrders.filter(o=>o.deliveredDate===todayDate);
+    if(!soToday.length&&!pickToday.length&&!dispToday.length&&!delivToday.length){
+      return '<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:14px 16px;margin-bottom:14px;text-align:center;font-size:12px;color:var(--grey-400)">📋 No activity recorded today yet</div>';
+    }
+    const row=(o,detail,color)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:white;border:1px solid var(--grey-100);border-radius:7px;margin-bottom:4px;gap:8px"><div><span style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:12px;color:var(--navy)">'+esc(o.soNum)+'</span> <span style="font-size:12px;color:var(--grey-600)">'+esc(o.customer)+'</span></div><div style="font-size:11px;color:'+color+';font-weight:600;white-space:nowrap">'+detail+'</div></div>';
+    const sec=(title,icon,rows,color)=>rows.length===0?'':'<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+icon+' '+title+' ('+rows.length+')</div>'+rows+'</div>';
+    return '<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
+      +'<div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:12px">📅 Today — '+todayDate.split('-').reverse().join('/')+'</div>'
+      +sec('SO Created / Received','📋',soToday.map(o=>row(o,o.ocReceivedDate===todayDate?'OC Received':'SO Created','var(--blue)')).join(''),'var(--blue)')
+      +sec('Picking Completed','📦',pickToday.map(o=>row(o,'SK: '+(o.storeKeepers&&o.storeKeepers.length?esc(o.storeKeepers[0]):'—'),'var(--teal)')).join(''),'var(--teal)')
+      +sec('Dispatched','🚚',dispToday.map(o=>row(o,'Driver: '+esc(o.driverName||'—')+(o.dispatchedTime?' · '+o.dispatchedTime:''),'var(--amber)')).join(''),'var(--amber)')
+      +sec('Delivered','✅',delivToday.map(o=>row(o,o.deliveredTime||'Delivered','var(--green)')).join(''),'var(--green)')
+      +'</div>';
+  })()}
+
+  <!-- Summary stats -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+    ${[
+      ['📋','This Month SOs',mthOrders.length,'var(--blue)'],
+      ['📦','This Year SOs',yrOrders.length,'var(--navy)'],
+      ['⏳','Pending Delivery',pending.length,'var(--amber)'],
+      ['✅','Delivered (Month)',mthOrders.filter(o=>o.deliveredDate).length,'var(--green)'],
+    ].map(([ic,lb,val,col])=>`
+    <div class="card" style="margin:0;padding:14px;display:flex;align-items:center;gap:10px">
+      <div style="font-size:24px">${ic}</div>
+      <div>
+        <div style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${col}">${val}</div>
+        <div style="font-size:11px;color:var(--grey-500)">${lb}</div>
+      </div>
+    </div>`).join('')}
+  </div>
+
+  <!-- Pending by stage -->
+  ${pending.length>0?`
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><span class="card-title">⏳ Pending Orders by Stage</span></div>
+    <div class="card-body" style="padding:10px 16px">
+      ${Object.entries(pendingByStage).map(([s,n])=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--grey-100)">
+        <div style="min-width:130px;font-size:12px;font-weight:600;color:var(--grey-700)">${stageLabel(s)}</div>
+        ${bar(n,pending.length,'var(--amber-br)')}
+        <div style="min-width:24px;text-align:right;font-size:13px;font-weight:700;color:var(--navy)">${n}</div>
+      </div>`).join('')}
+    </div>
+  </div>`:''}
+
+  <!-- Pending Discrepancy -->
+  ${(()=>{
+    const discrepOrders = db.orders.filter(o=>o.discrepancy==='Yes'&&!o.discrepancySettled&&o.status!=='Cancelled');
+    if(discrepOrders.length===0) return '';
+    return `
+    <div class="card" style="margin-bottom:14px;border:2px solid #fecaca">
+      <div class="card-head" style="background:var(--red-lt)">
+        <span class="card-title" style="color:var(--red)">⚠️ Pending Discrepancy — Needs Settlement (${discrepOrders.length})</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        ${discrepOrders.map(o=>`
+        <div style="padding:12px 16px;border-bottom:1px solid var(--grey-100);cursor:pointer" onclick="switchTab('orders')">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--navy)">${esc(o.soNum)}</div>
+              <div style="font-size:12px;color:var(--grey-600);margin-top:2px">${esc(o.customer)}</div>
+            </div>
+            <span class="badge ${o.discrepancyCause==='sk'?'badge-red':'badge-amber'}">
+              ${o.discrepancyCause==='sk'?'⚠️ Picking Error':'🏷️ Goods Issue'}
+            </span>
+          </div>
+          <div style="margin-top:6px;font-size:12px;color:var(--grey-700);background:var(--red-lt);padding:6px 10px;border-radius:6px">
+            ${esc(o.discrepancyNote||'No details provided')}
+          </div>
+          <div style="margin-top:6px;font-size:11px;color:var(--grey-400)">
+            SO Date: ${fmt(o.soDate)} · SK: ${esc((o.storeKeepers||[]).join(', ')||'—')}
+          </div>
+        </div>`).join('')}
+        <div style="padding:10px 16px;background:var(--grey-50);font-size:11px;color:var(--grey-500);text-align:center">
+          Tap any row to go to Orders and settle the discrepancy
+        </div>
+      </div>
+    </div>`;
+  })()}
+
+  <!-- Top customers this month -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><span class="card-title">🏆 Top Customers — ${monthLabel(thisMth)}</span></div>
+    <div class="card-body" style="padding:10px 16px">
+      ${topMth.length===0
+        ?`<div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">No orders this month</div>`
+        :topMth.map(([cust,n],i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)">
+        <div style="min-width:20px;font-size:12px;font-weight:700;color:var(--grey-400)">${i+1}</div>
+        <div style="flex:1;font-size:13px;font-weight:600;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cust)}</div>
+        ${bar(n,maxMth,'var(--blue)')}
+        <div style="min-width:32px;text-align:right;font-size:13px;font-weight:700;color:var(--blue)">${n} SO</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Top customers this year -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><span class="card-title">📅 Top Customers — ${thisYear}</span></div>
+    <div class="card-body" style="padding:10px 16px">
+      ${topYr.length===0
+        ?`<div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">No orders this year</div>`
+        :topYr.map(([cust,n],i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)">
+        <div style="min-width:20px;font-size:12px;font-weight:700;color:var(--grey-400)">${i+1}</div>
+        <div style="flex:1;font-size:13px;font-weight:600;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cust)}</div>
+        ${bar(n,maxYr,'var(--navy)')}
+        <div style="min-width:32px;text-align:right;font-size:13px;font-weight:700;color:var(--navy)">${n} SO</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Customers with pending orders -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">🚨 Pending Delivery — ${pending.length} SO(s)</span></div>
+    <div class="card-body" style="padding:10px 16px">
+      ${pendCusts.length===0
+        ?`<div style="text-align:center;color:var(--green);font-size:13px;font-weight:600;padding:12px">✅ All orders delivered!</div>`
+        :(()=>{
+          // Show each pending SO individually with SO number and effective delivery date
+          const pendingSOs = pending.sort((a,b)=>{
+            const da = a.requestedDate||'9999';
+            const db2 = b.requestedDate||'9999';
+            return da.localeCompare(db2);
+          });
+          return pendingSOs.map(o=>{
+            const effDate = o.requestedDateRev2||o.requestedDateRev1||o.requestedDate||null;
+            const isRevised = !!(o.requestedDateRev1||o.requestedDateRev2);
+            const stage = stageOf(o);
+            return `
+            <div style="padding:8px 0;border-bottom:1px solid var(--grey-100)">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                <div>
+                  <div style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy)">${esc(o.soNum)}</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--grey-800);margin-top:1px">${esc(o.customer)}</div>
+                </div>
+                <div style="text-align:right">
+                  <span class="badge ${stagePillClass(stage)}" style="font-size:10px">${stageLabel(stage)}</span>
+                  ${effDate?`<div style="font-size:11px;margin-top:4px;font-weight:600;color:${isRevised?'var(--amber)':'var(--grey-600)'}">
+                    ${isRevised?'👤 Rev: ':'📅 '}${fmt(effDate)}
+                  </div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:4px">No date set</div>'}
+                  <div style="font-size:11px;margin-top:3px;font-weight:600;font-family:'JetBrains Mono',monospace;color:${o.doNum?'var(--teal)':'var(--amber)'}">
+                    ${o.doNum?'DO: '+esc(o.doNum):'⚠️ Pending DO'}
+                  </div>
+                </div>
+              </div>
+            </div>`;
+          }).join('');
+        })()}
+    </div>
+  </div>`;
+}
+
+function renderOrders(){
+  const role=currentUser.role;
+  const stages={pendingOC:0,pendingSK:0,awaitingGoods:0,picking:0,pendingDiscrep:0,pendingDO:0,ready:0,dispatched:0,delivered:0,cancelled:0};
+  db.orders.forEach(o=>stages[stageOf(o)]++);
+
+  const filterMonth = selectedMonth;
+  let orders=[...db.orders].sort((a,b)=>b.soDate.localeCompare(a.soDate));
+  if(filterMonth) orders=orders.filter(o=>o.soDate.startsWith(filterMonth));
+  // search filter applied after render via renderOrdersView
+
+  const months=getMonths();
+
+  return`
+  ${role==='OC'||role==='MGR'?`
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">+ New Sales Order</span>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="fg"><label>SO Number *</label><input id="n-so" placeholder="e.g. SO-2026-001"></div>
+        <div class="fg"><label>Customer *</label><input id="n-cust" placeholder="Company name"></div>
+        <div class="fg"><label>SO Date *</label><input type="date" id="n-sodate" value="${today()}"></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Requested Delivery Date</label><input type="date" id="n-reqdate"></div>
+        <div class="fg"><label>OC Received Date * <span style="font-size:9px;color:var(--grey-400);font-weight:400">(Date OC actually received this SO)</span></label><input type="date" id="n-ocreceived" value="${today()}"></div>
+        <div class="fg"><label>Delivery Type</label>
+          <select id="n-dtype"><option value="Local">Local (Same Day)</option><option value="Outstation">Outstation</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Remarks</label><input id="n-remarks" placeholder="Optional"></div>
+      </div>
+      <button class="btn btn-primary" onclick="addOrder()">Create SO</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">📦 Purchase Orders & Goods Receipt</span>
+      <span style="font-size:11px;color:var(--grey-400)">Add if goods need to be ordered from supplier</span>
+    </div>
+    <div class="card-body">
+      <div id="new-po-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+      <div id="no-po-warning" style="display:none;background:var(--red-lt);border:1px solid #fecaca;border-radius:7px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:var(--red);font-weight:600">⚠️ At least one PO is required before creating SO</div>
+      <button class="btn btn-sm" style="background:var(--purple-lt);color:var(--purple);width:100%;justify-content:center" onclick="addNewPORow()" type="button">+ Add PO</button>
+    </div>
+  </div>`:''}
+
+  <div class="card" style="margin-bottom:10px">
+    <div class="card-body" style="padding:10px 14px">
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:16px">🔍</span>
+        <input id="search-input" type="search" placeholder="Search SO, PO, Customer, DO, INV..."
+          style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid var(--grey-200);border-radius:8px;font-size:14px;font-family:inherit"
+          oninput="renderOrdersView()" autocomplete="off">
+      </div>
+    </div>
+  </div>
+  ${(role==='OC'||role==='MGR')?`
+  <div class="card" style="margin-bottom:10px">
+    <div class="card-head" style="cursor:pointer" onclick="togglePOPanel()">
+      <span class="card-title">📦 Purchase Orders & Goods Receipt</span>
+      <span id="po-panel-toggle" style="font-size:12px;color:var(--grey-500)">▼ Show</span>
+    </div>
+    <div id="po-panel" class="hidden">
+      <div class="card-body" style="padding:12px 16px">
+        ${renderPOPanel()}
+      </div>
+    </div>
+  </div>`:''}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:13px;font-weight:700;color:var(--navy)">All Orders</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;overflow-x:auto">
+      ${months.slice(0,6).map(m=>`<button class="mchip ${m===selectedMonth?'active':''}" onclick="filterMonth('${m}')">${monthLabel(m)}</button>`).join('')}
+      ${selectedMonth?`<button class="mchip" onclick="filterMonth(null)">All</button>`:''}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;min-width:0">
+    ${[['⏳','Pending OC',stages.pendingOC,'var(--grey-500)'],['📬','Pending SK',stages.pendingSK,'var(--grey-500)'],['🚛','Awaiting Goods',stages.awaitingGoods,'var(--purple)'],['⚠️','Discrepancy',stages.pendingDiscrep,'var(--amber)']]
+      .map(([ic,lb,ct,cc])=>`<div class="card" style="margin:0;padding:10px 6px;text-align:center">
+        <div style="font-size:16px">${ic}</div>
+        <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${cc}">${ct}</div>
+        <div style="font-size:9px;color:var(--grey-500);margin-top:2px">${lb}</div>
+      </div>`).join('')}
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;min-width:0">
+    ${[['📦','Picking',stages.picking,'var(--blue)'],['📄','Pending DO',stages.pendingDO,'var(--amber)'],['🚚','Dispatched',stages.dispatched,'var(--navy)'],['✅','Delivered',stages.delivered,'var(--green)']]
+      .map(([ic,lb,ct,cc])=>`<div class="card" style="margin:0;padding:10px 6px;text-align:center">
+        <div style="font-size:16px">${ic}</div>
+        <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${cc}">${ct}</div>
+        <div style="font-size:9px;color:var(--grey-500);margin-top:2px">${lb}</div>
+      </div>`).join('')}
+  </div>
+
+  <div id="search-count" style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:8px;padding:0 2px"></div>
+  <div class="so-list">
+    ${orders.length===0
+      ?`<div class="empty-state"><div class="empty-icon">📭</div>No orders found.</div>`
+      :orders.map(o=>renderSOCard(o)).join('')}
+  </div>`;
+}
+
+function togglePOPanel(){
+  const panel = document.getElementById('po-panel');
+  const toggle = document.getElementById('po-panel-toggle');
+  if(!panel||!toggle) return;
+  const isHidden = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !isHidden);
+  toggle.textContent = isHidden ? '▲ Hide' : '▼ Show';
+}
+
+function renderPOPanel(){
+  // Collect all SOs that have POs
+  const sosWithPO = db.orders.filter(o=>o.poList&&o.poList.length>0)
+    .sort((a,b)=>b.soDate.localeCompare(a.soDate));
+
+  if(sosWithPO.length===0){
+    return `<div style="text-align:center;padding:20px;font-size:12px;color:var(--grey-400)">
+      No POs added yet. Add PO when creating or editing a SO.
+    </div>`;
+  }
+
+  return sosWithPO.map(o=>`
+    <div style="border:1px solid var(--grey-200);border-radius:8px;margin-bottom:10px;overflow:hidden">
+      <div style="background:var(--grey-50);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--navy)">${esc(o.soNum)}</span>
+          <span style="font-size:12px;color:var(--grey-500);margin-left:6px">${esc(o.customer)}</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${o.poList.every(p=>p.grNum)
+            ?`<span class="badge badge-green">✅ All GR received</span>`
+            :`<span class="badge badge-amber">⏳ ${o.poList.filter(p=>!p.grNum).length} pending</span>`}
+          <button class="btn btn-xs btn-ghost" onclick="openSO('${o.id}')" type="button">Open SO</button>
+        </div>
+      </div>
+      ${o.poList.map((p,pi)=>`
+      <div style="padding:10px 14px;border-top:1px solid var(--grey-100);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--grey-800);font-family:'JetBrains Mono',monospace">${esc(p.poNum)}</div>
+          <div style="font-size:11px;color:var(--grey-500);margin-top:2px">${esc(p.supplier||'—')} ${p.expectedDate?'· Exp: '+fmt(p.expectedDate):''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${p.grNum
+            ?`<div style="text-align:right">
+                <div class="badge badge-green">✅ GR: ${esc(p.grNum)}</div>
+                <div style="font-size:10px;color:var(--grey-400);margin-top:2px">${fmt(p.grDate)}</div>
+              </div>`
+            :`<span class="badge badge-amber">⏳ Awaiting goods</span>`}
+          <button class="btn btn-xs btn-ghost" onclick="editPO('${o.id}',${pi})" type="button">✏️</button>
+          ${!p.grNum?`<button class="btn btn-xs btn-teal" onclick="keyGR('${o.id}',${pi})" type="button">📥 Key GR</button>`:''}
+          <button class="btn btn-xs btn-danger" onclick="removePO('${o.id}',${pi})" type="button">✕</button>
+        </div>
+      </div>`).join('')}
+      <div style="padding:8px 14px;border-top:1px solid var(--grey-100);background:var(--grey-50)">
+        <button class="btn btn-xs" style="background:var(--purple-lt);color:var(--purple)" onclick="addPO('${o.id}')" type="button">+ Add PO to this SO</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterMonth(m){
+  selectedMonth=m;
+  document.getElementById('main-content').innerHTML=renderOrders();
+  // restore search if any
+  const si=document.getElementById('search-input');
+  if(si&&si.value) renderOrdersView();
+}
+
+function renderOrdersView(){
+  const si=document.getElementById('search-input');
+  const q=(si?si.value:'').toLowerCase().trim();
+  if(!q){
+    // show all
+    document.querySelectorAll('.so-card').forEach(c=>c.parentElement&&(c.style.display=''));
+    document.getElementById('search-count')&&(document.getElementById('search-count').textContent='');
+    return;
+  }
+  let count=0;
+  document.querySelectorAll('.so-card').forEach(card=>{
+    const text=card.textContent.toLowerCase();
+    const show=text.includes(q);
+    card.style.display=show?'':'none';
+    if(show) count++;
+  });
+  const sc=document.getElementById('search-count');
+  if(sc) sc.textContent=`${count} result${count!==1?'s':''} for "${si.value}"`;
+}
+
+function renderSOCard(o){
+  const stage=stageOf(o);
+  const totalDays=o.deliveredDate?daysBetween(o.soDate,o.deliveredDate):null;
+  const onTime=o.deliveredDate&&effectiveReqDate(o)?o.deliveredDate<=effectiveReqDate(o):null;
+  const storeList=o.storeKeepers&&o.storeKeepers.length?o.storeKeepers.join(', '):'—';
+  return`
+  <div class="so-card" onclick="openSO('${o.id}')">
+    <div class="so-card-top">
+      <div>
+        <div class="so-num">${esc(o.soNum)}</div>
+        <div class="so-customer">${esc(o.customer)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="stage-pill ${stagePillClass(stage)}">${stageLabel(stage)}</span>
+        ${o.status==='Hold'?`<span class="stage-pill pill-hold">Hold</span>`:''}
+        ${o.status==='Partial'?`<span class="stage-pill pill-partial">Partial</span>`:''}
+      </div>
+    </div>
+    <div style="margin-bottom:8px">
+      ${renderStepTrack(stage)}
+    </div>
+    <div class="so-meta">
+      <span class="so-meta-item">SO: <strong>${fmt(o.soDate)}</strong></span>
+      ${o.originalRequestedDate?`<span class="so-meta-item">Req: <strong>${fmt(o.originalRequestedDate)}</strong></span>`:''}
+      ${o.requestedDateRev1?`<span class="so-meta-item" style="color:var(--amber)">Rev1: <strong>${fmt(o.requestedDateRev1)}</strong></span>`:''}
+      ${o.requestedDateRev2?`<span class="so-meta-item" style="color:var(--red)">Rev2: <strong>${fmt(o.requestedDateRev2)}</strong></span>`:''}
+      ${o.doNum?`<span class="so-meta-item">DO: <strong>${esc(o.doNum)}</strong></span>`:''}
+      ${o.invNum?`<span class="so-meta-item">INV: <strong>${esc(o.invNum)}</strong></span>`:''}
+      ${totalDays!==null?daysDisplay(totalDays,3):''}
+      ${o.dispatchedDate&&!o.deliveredDate?`<span class="so-meta-item">🚚 <strong>${fmt(o.dispatchedDate)}${o.dispatchedTime?' '+o.dispatchedTime:''}</strong></span>`:''}
+      ${o.deliveredDate?`<span class="so-meta-item">🕐 <strong>${fmt(o.deliveredDate)}${o.deliveredTime?' '+o.deliveredTime:''}</strong></span>`:''}
+      ${onTime===true?`<span class="badge badge-green">✅ On Time</span>`:onTime===false?`<span class="badge badge-red">❌ Late</span>`:''}
+      ${o.lastDateChangeReason==='customer'?`<span class="badge badge-blue">👤 Date changed by customer</span>`:''}
+    </div>
+    <div style="margin-top:6px;font-size:11px;color:var(--grey-400)">
+      ${storeList!=='—'?`Storekeeper: ${esc(storeList)} · `:''}
+      ${o.driverName?`Driver: ${esc(o.driverName)} · `:''}
+      ${o.poList&&o.poList.length?`<span style="color:var(--purple);font-weight:600">PO: ${o.poList.map(p=>esc(p.poNum)).join(', ')}</span>`:''}
+    </div>
+    ${o.remarks?`<div style="margin-top:4px;font-size:12px;font-weight:700;color:var(--red)">⚠️ ${esc(o.remarks)}</div>`:''}
+  </div>`;
+}
+
+function renderStepTrack(stage){
+  const steps=['pendingOC','pendingSK','picking','pendingDiscrep','ready','dispatched','delivered'];
+  const labels=['SO Created','Pending SK','Picking','Discrepancy','Ready','Dispatched','Delivered'];
+  // for display, collapse pendingDiscrep into picking position if no discrepancy
+  const displaySteps=['pendingOC','pendingSK','picking','pendingDO','ready','dispatched','delivered'];
+  const displayLabels=['SO Created','Pending SK','Picking','Pending DO','Ready','Dispatched','Delivered'];
+  const isDiscrep=stage==='pendingDiscrep';
+  const useSteps=isDiscrep?steps:displaySteps;
+  const useLabels=isDiscrep?labels:displayLabels;
+  const idx=stage==='cancelled'?-1:useSteps.indexOf(stage);
+  const last=useSteps.length-1;
+  let html='<div class="step-track">';
+  useSteps.forEach((s,i)=>{
+    const done=(idx>i)||(stage==='delivered'&&i<=last);
+    const active=i===idx;
+    const isWarn=active&&s==='pendingDiscrep';
+    const cls=done?'done':isWarn?'warn':active?'active':'';
+    html+=`<div class="step-node">
+      <div class="step-dot ${cls}" style="${isWarn?'background:#b45309;border-color:#b45309;color:white':''}">${done?'✓':isWarn?'!':i+1}</div>
+      <div class="step-lbl ${cls}" style="${isWarn?'color:#b45309':''}">${useLabels[i]}</div>
+    </div>`;
+    if(i<useSteps.length-1) html+=`<div class="step-line ${done?'done':''}"></div>`;
+  });
+  return html+'</div>';
+}
+
+// ─────────────────────────────────────────────────────────
+// ADD ORDER
+// ─────────────────────────────────────────────────────────
+let newPORows = [];
+
+function addNewPORow(){
+  const idx = newPORows.length;
+  newPORows.push({poNum:'',supplier:'',expectedDate:'',remarks:''});
+  renderNewPORows();
+}
+
+function removeNewPORow(idx){
+  newPORows.splice(idx,1);
+  renderNewPORows();
+}
+
+function renderNewPORows(){
+  const container = document.getElementById('new-po-list');
+  if(!container) return;
+  if(newPORows.length===0){
+    container.innerHTML='<div style="font-size:12px;color:var(--grey-400);text-align:center;padding:8px">No POs added — click "+ Add PO" if goods need to be ordered from supplier</div>';
+    return;
+  }
+  container.innerHTML = newPORows.map((p,i)=>`
+    <div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:700;color:var(--purple)">PO ${i+1}</span>
+        <button class="btn btn-danger btn-xs" onclick="removeNewPORow(${i})" type="button">✕ Remove</button>
+      </div>
+      <div class="form-row">
+        <div class="fg">
+          <label>PO Number *</label>
+          <input placeholder="e.g. PO-2026-001" value="${p.poNum||''}"
+            oninput="newPORows[${i}].poNum=this.value">
+        </div>
+        <div class="fg">
+          <label>Supplier Name *</label>
+          <input placeholder="Supplier name" value="${p.supplier||''}"
+            oninput="newPORows[${i}].supplier=this.value">
+        </div>
+        <div class="fg">
+          <label>Expected Delivery Date</label>
+          <input type="date" value="${p.expectedDate||''}"
+            oninput="newPORows[${i}].expectedDate=this.value">
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function addOrder(){
+  const soNum=document.getElementById('n-so').value.trim();
+  const customer=document.getElementById('n-cust').value.trim();
+  const soDate=document.getElementById('n-sodate').value;
+  const reqDate=document.getElementById('n-reqdate').value;
+  const ocReceived=document.getElementById('n-ocreceived').value||soDate;
+  const dtype=document.getElementById('n-dtype').value;
+  const remarks=document.getElementById('n-remarks').value.trim();
+  if(!soNum||!customer||!soDate){showToast('⚠️ SO Number, Customer and Date required');return}
+  if(db.orders.find(o=>o.soNum===soNum)){showToast('⚠️ SO Number already exists');return}
+  if(newPORows.length===0){
+    showToast('⚠️ At least one PO is required');
+    const w=document.getElementById('no-po-warning');
+    if(w){w.style.display='';setTimeout(()=>w.style.display='none',4000);}
+    return;
+  }
+  for(let i=0;i<newPORows.length;i++){
+    if(!newPORows[i].poNum||!newPORows[i].supplier){
+      showToast('⚠️ PO '+(i+1)+': PO Number and Supplier required');return;
+    }
+  }
+
+  const order={
+    id:Date.now().toString(),
+    soNum,customer,soDate,
+    requestedDate:reqDate||null,
+    originalRequestedDate:reqDate||null,
+    ocReceivedDate:ocReceived||soDate,
+    deliveryType:dtype,
+    remarks,status:'Active',
+    ocName:currentUser.name,
+    storeKeepers:[],
+    poList:newPORows.map(p=>({...p,grNum:null,grDate:null})),
+    pickingStarted:null,pickingDone:null,
+    doNum:null,invNum:null,doDate:null,
+    driverName:null,deliveredDate:null,
+    errors:[],createdAt:today()
+  };
+  db.orders.push(order);
+  saveDB(order);
+  ['n-so','n-cust','n-reqdate','n-remarks'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('n-ocreceived').value=today();
+  document.getElementById('n-sodate').value=today();
+  newPORows=[];
+  renderNewPORows();
+  showToast('✅ SO created'+(order.poList.length?' with '+order.poList.length+' PO(s)':''));
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+// ─────────────────────────────────────────────────────────
+// OPEN SO DRAWER
+// ─────────────────────────────────────────────────────────
+function openSO(id){
+  const o=db.orders.find(x=>x.id===id);
+  if(!o) return;
+  const role=currentUser.role;
+  const stage=stageOf(o);
+
+  let html=`
+  <div class="drawer-handle"></div>
+  <div class="drawer-title">${esc(o.soNum)}</div>
+  <div class="drawer-sub">${esc(o.customer)} · ${fmt(o.soDate)}</div>
+  ${renderStepTrack(stage)}
+  <hr class="divider">`;
+
+  // Info summary
+  const discrepBadge=o.discrepancy==='Yes'?`<span style="color:var(--red);font-weight:700">⚠️ Yes</span>`:'No';
+  html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;font-size:12px;word-break:break-word">
+    ${[['SO Date',fmt(o.soDate)],
+       ['Req. Date (Original)',fmt(o.originalRequestedDate||o.requestedDate)],
+       ...(o.requestedDateRev1?[['Req. Date Rev 1 👤',fmt(o.requestedDateRev1)]]:[]),
+       ...(o.requestedDateRev2?[['Req. Date Rev 2 👤',fmt(o.requestedDateRev2)]]:[]),
+       ['Delivery Type',o.deliveryType||'—'],['Status',o.status||'Active'],
+       ['DO Number',o.doNum||'—'],['INV Number',o.invNum||'—'],
+       ['Actual Delivery',(o.deliveredDate?fmt(o.deliveredDate)+(o.deliveredTime?' '+o.deliveredTime:''):'—')],
+       ['Total Days',o.deliveredDate?daysBetween(o.soDate,o.deliveredDate)+'d':'In progress']]
+      .map(([l,v])=>`<div><div style="font-size:10px;font-weight:700;color:var(--grey-500);text-transform:uppercase;margin-bottom:2px">${l}</div><div style="font-weight:600;color:var(--grey-800)">${v}</div></div>`).join('')}
+  </div>
+  ${(o.discrepancy==='Yes'||o.discrepancyNote)?`
+  <div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+    <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:4px">⚠️ ${o.discrepancyCause==='sk'?'Picking Error (SK Fault)':o.discrepancyCause==='goods'?'Goods Issue (Not SK Fault)':'Stock Discrepancy'} — Reported by Storekeeper</div>
+    <div style="font-size:13px;color:var(--grey-800)">${esc(o.discrepancyNote||'(No details provided)')}</div>
+    ${o.storeKeepers&&o.storeKeepers.length?`<div style="font-size:11px;color:var(--grey-500);margin-top:4px">Reported by: ${esc(o.storeKeepers.join(', '))}</div>`:''}
+  </div>`:''}
+  <hr class="divider">`;
+
+  // Role-specific update sections
+  if(role==='OC'||role==='MGR'){
+
+    html+=`<div class="form-section">
+      <div class="form-section-title">OC Actions</div>
+      <div class="form-row">
+        <div class="fg">
+          <label>OC Received Date</label>
+          <input type="date" id="d-ocreceived" value="${o.ocReceivedDate||o.soDate||''}">
+          <div style="font-size:10px;color:var(--grey-400);margin-top:2px">Date OC actually received this SO from Operations</div>
+        </div>
+        <div class="fg">
+          <label>Requested Delivery Date (Original)</label>
+          <input type="date" id="d-reqdate-orig" value="${o.originalRequestedDate||o.requestedDate||''}">
+          <div style="font-size:10px;color:var(--grey-400);margin-top:2px">Set by OC when SO created</div>
+        </div>
+        <div class="fg">
+          <label>Req. Delivery Date Rev 1 <span style="color:var(--amber)">(Customer change)</span></label>
+          <input type="date" id="d-reqdate-rev1" value="${o.requestedDateRev1||''}">
+          <div style="font-size:10px;color:var(--grey-400);margin-top:2px">Fill only if customer requests change</div>
+        </div>
+        <div class="fg">
+          <label>Req. Delivery Date Rev 2</label>
+          <input type="date" id="d-reqdate-rev2" value="${o.requestedDateRev2||''}">
+          <div style="font-size:10px;color:var(--grey-400);margin-top:2px">If customer changes again</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Status</label>
+          <select id="d-status">
+            <option ${o.status==='Active'?'selected':''}>Active</option>
+            <option ${o.status==='Hold'?'selected':''}>Hold</option>
+            <option ${o.status==='Partial'?'selected':''}>Partial</option>
+            <option ${o.status==='Cancelled'?'selected':''}>Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="fg"><label>Remarks</label><input id="d-remarks" value="${esc(o.remarks||'')}"></div>
+        <div class="fg"><label>DO Number</label><input id="d-do" placeholder="e.g. DO-2026-001" value="${esc(o.doNum||'')}"></div>
+        <div class="fg"><label>Invoice Number</label><input id="d-inv" placeholder="e.g. INV-2026-001" value="${esc(o.invNum||'')}"></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>DO Date</label><input type="date" id="d-dodate" value="${o.doDate||''}"></div>
+      </div>
+      ${(o.pickingCompleted||o.pickingDone)&&!o.doNum?`
+      <div style="background:var(--amber-lt);border:1px solid #fde68a;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:var(--amber);font-weight:600">
+        ⚠️ Picking is done — please fill in the DO Number to move this order to Ready to Ship
+      </div>`:''}
+      <button class="btn btn-primary btn-sm" onclick="updateOC('${id}')">Save OC Update</button>
+      <hr style="border:none;border-top:1px solid var(--grey-100);margin:14px 0">
+      ${!o.passedToSK
+        ?`<button class="btn btn-teal" style="width:100%;justify-content:center;padding:13px;font-size:14px" onclick="passToSK('${id}')">📬 Pass to Storekeeper</button>`
+        :`<div style="background:var(--teal-lt);border:1px solid #99f6e4;border-radius:8px;padding:10px 14px;font-size:13px;color:var(--teal);font-weight:600;text-align:center">✅ Passed to Storekeeper on ${fmt(o.passedToSK)}</div>`
+      }
+    </div><hr class="divider">`;
+  }
+
+  if(role==='SK'||role==='MGR'){
+    const hasDiscrep=o.discrepancy==='Yes';
+    const isSettled=!!o.discrepancySettled;
+    html+=`<div class="form-section">
+      <div class="form-section-title">📦 Storekeeper Update</div>
+      ${hasUnreceivedPO(o)?`<div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:4px">🚫 Cannot Start Picking Yet</div>
+        <div style="font-size:12px;color:var(--grey-700)">Some goods have not been received (GR pending). Please wait for OC to key GR before picking.</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          ${(o.poList||[]).map(p=>`<div style="font-size:11px;display:flex;align-items:center;gap:6px">
+            <span class="badge ${p.grNum?'badge-green':'badge-red'}">${p.grNum?'✅ Received':'❌ Not yet'}</span>
+            <span>${esc(p.poNum)} · ${esc(p.supplier||'')}</span>
+          </div>`).join('')}
+        </div>
+      </div>`:''}
+      ${o.lastUpdatedBy?`<div style="background:var(--blue-lt);border:1px solid var(--blue-dim);border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">📋 <strong>OC Update:</strong> Last updated by ${esc(o.lastUpdatedBy)} on ${esc(o.lastUpdatedAt||'')}${o.doNum?' · DO: '+esc(o.doNum):''}${o.requestedDate?' · Req. Delivery: '+fmt(o.requestedDate):''}${o.remarks?' · Remarks: '+esc(o.remarks):''}</div>`:''}
+      ${o.poList&&o.poList.length?`<div style="background:var(--purple-lt);border:1px solid #c4b5fd;border-radius:7px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:6px">📦 Purchase Orders</div>
+        ${o.poList.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ede9fe;font-size:12px">
+          <div><strong>${esc(p.poNum)}</strong> · ${esc(p.supplier||'—')}</div>
+          <span class="badge ${p.grNum?'badge-green':'badge-amber'}">${p.grNum?'✅ GR: '+esc(p.grNum):'⏳ Awaiting goods'}</span>
+        </div>`).join('')}
+        ${o.poList.some(p=>!p.grNum)?'<div style="font-size:11px;color:var(--amber);margin-top:6px;font-weight:600">⚠️ Some goods not yet received — check with OC before picking</div>':"<div style='font-size:11px;color:var(--green);margin-top:6px;font-weight:600'>✅ All goods received — ready to pick</div>"}
+      </div>`:''}
+      ${o.passedToSK?`<div style="background:var(--teal-lt);border:1px solid #99f6e4;border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--teal);font-weight:600">📬 SO received from OC on: <span style="font-family:'JetBrains Mono',monospace">${fmt(o.passedToSK)}</span></div>`:'<div style="background:var(--amber-lt);border:1px solid #fde68a;border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--amber)">⏳ Waiting for OC to pass this SO</div>'}
+      <div class="form-row">
+        <div class="fg"><label>Storekeeper Name</label><input id="d-sk" value="${esc(currentUser.role==='SK'?currentUser.name:(o.storeKeepers&&o.storeKeepers.length?o.storeKeepers[o.storeKeepers.length-1]:''))}"></div>
+        <div class="fg"><label>Picking Started</label><input type="date" id="d-pkstart" value="${o.pickingStarted||today()}" ${hasUnreceivedPO(o)?"disabled style='background:var(--grey-100);color:var(--grey-400)'":""}></div>
+        <div class="fg"><label>Picking Completed <span style="color:var(--red)">*</span></label><input type="date" id="d-pkdone" value="${o.pickingCompleted||''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Stock Card Updated? <span style="color:var(--red)">*</span></label>
+          <select id="d-stockcard">
+            <option value="">— Select —</option>
+            <option value="Yes" ${o.stockCardUpdated==='Yes'?'selected':''}>Yes</option>
+            <option value="No" ${o.stockCardUpdated==='No'?'selected':''}>No</option>
+          </select>
+        </div>
+        <div class="fg"><label>Any Discrepancy?</label>
+          <select id="d-discrep" onchange="toggleDiscrepFields(this.value)">
+            <option value="No" ${!hasDiscrep?'selected':''}>No — All correct</option>
+            <option value="Yes" ${hasDiscrep?'selected':''}>Yes — Discrepancy found</option>
+          </select>
+        </div>
+      </div>
+      <div id="discrep-fields" style="${hasDiscrep?'':'display:none'}">
+        <div style="background:var(--amber-lt);border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:8px">⚠️ Discrepancy Details</div>
+          <div class="form-row" style="margin-bottom:8px">
+            <div class="fg" style="grid-column:span 2">
+              <label>Discrepancy Note *</label>
+              <input id="d-discnote" placeholder="Describe what is wrong..." value="${esc(o.discrepancyNote||'')}">
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg">
+              <label>Cause of Discrepancy</label>
+              <select id="d-discrep-cause">
+                <option value="">Select cause...</option>
+                <option value="goods" ${o.discrepancyCause==='goods'?'selected':''}>🏷️ Goods Issue (stock shortage / damage / wrong delivery from supplier)</option>
+                <option value="sk" ${o.discrepancyCause==='sk'?'selected':''}>⚠️ Picking Error (wrong item / wrong qty / missed item)</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--grey-600)">
+            🏷️ <strong>Goods Issue</strong> = not SK's fault, will not affect KPI<br>
+            ⚠️ <strong>Picking Error</strong> = SK's mistake, will be counted in KPI
+          </div>
+        </div>
+        ${hasDiscrep&&!isSettled?`
+        <div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:12px;color:var(--red);font-weight:600">⏳ Pending settlement — OC to advise, then mark as settled</div>
+          <button class="btn btn-sm" style="background:var(--green);color:white;white-space:nowrap" onclick="settleDiscrep('${id}')">✅ Mark Settled</button>
+        </div>`:''}
+        ${isSettled?`<div style="background:var(--green-lt);border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--green);font-weight:600">✅ Settled on ${fmt(o.discrepancySettled)}</div>`:''}
+      </div>
+      <button class="btn btn-teal btn-sm" onclick="updateSK('${id}')" ${hasUnreceivedPO(o)?"disabled style='opacity:.4;cursor:not-allowed'":""}>${hasUnreceivedPO(o)?'🚫 Awaiting GR — Cannot Pick Yet':'Save Picking Update'}</button>
+    </div><hr class="divider">`;
+  }
+
+  if(role==='LD'||role==='MGR'){
+    const delivTime=o.deliveredTime||'';
+    const dispTime=o.dispatchedTime||'';
+    html+=`<div class="form-section">
+      <div class="form-section-title">🚚 Lorry Driver Update</div>
+
+      <div style="background:var(--blue-lt);border:1px solid var(--blue-dim);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">📤 Step 1 — Dispatch (On The Way)</div>
+        <div class="form-row">
+          <div class="fg"><label>Driver Name</label><input id="d-driver" value="${esc(currentUser.role==='LD'?currentUser.name:o.driverName||'')}"></div>
+        </div>
+        ${o.dispatchedDate
+          ?`<div style="background:var(--blue-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--blue);font-weight:600">🚚 Dispatched on ${fmt(o.dispatchedDate)} at ${o.dispatchedTime||'—'} (Malaysia Time)</div>`
+          :o.doNum
+            ?`<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:10px 14px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;margin-bottom:6px">Please verify before dispatching:</div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:10px">
+                  <div><span style="color:var(--grey-500)">DO Number:</span> <strong style="color:var(--navy);font-family:'JetBrains Mono',monospace">${esc(o.doNum)}</strong></div>
+                  <div><span style="color:var(--grey-500)">Invoice:</span> <strong style="color:var(--navy);font-family:'JetBrains Mono',monospace">${o.invNum?esc(o.invNum):'<span style="color:var(--grey-400)">No Invoice</span>'}</strong></div>
+                  <div><span style="color:var(--grey-500)">Customer:</span> <strong>${esc(o.customer)}</strong></div>
+                  <div><span style="color:var(--grey-500)">Req. Date:</span> <strong>${fmt(o.requestedDateRev2||o.requestedDateRev1||o.requestedDate)}</strong></div>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--grey-800);margin-bottom:10px;cursor:pointer">
+                  <input type="checkbox" id="dispatch-confirm" style="width:18px;height:18px;accent-color:var(--blue)">
+                  I have verified the DO number and goods are correct
+                </label>
+                <button class="btn btn-sm" style="background:var(--blue);color:white;width:100%;justify-content:center;padding:13px;font-size:14px" onclick="updateLDDispatch('${id}')" type="button">🚚 Confirm &amp; Mark as Dispatched</button>
+              </div>`
+            :`<div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--red);font-weight:600">
+                🚫 Cannot Dispatch — OC has not issued a DO Number yet. Please contact OC.
+              </div>`
+        }
+      </div>
+
+      <div style="background:var(--green-lt);border:1px solid #86efac;border-radius:8px;padding:12px;${!o.dispatchedDate?'opacity:.5;pointer-events:none':''}">
+        <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px">✅ Step 2 — Confirm Delivery</div>
+        <div class="form-row">
+          <div class="fg"><label>Delivery Error?</label>
+            <select id="d-err" ${!o.dispatchedDate?'disabled':''}>
+              <option value="No" ${o.deliveryError!=='Yes'?'selected':''}>No — Delivered correctly</option>
+              <option value="Yes" ${o.deliveryError==='Yes'?'selected':''}>Yes — Error occurred</option>
+            </select>
+          </div>
+          <div class="fg" style="grid-column:span 2"><label>Error / Remarks</label><input id="d-errnote" value="${esc(o.deliveryErrorNote||'')}" ${!o.dispatchedDate?'disabled':''}></div>
+        </div>
+        ${o.deliveredDate
+          ?`<div style="background:var(--green-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--green);font-weight:600">✅ Delivered on ${fmt(o.deliveredDate)} at ${o.deliveredTime||'—'} (Malaysia Time)</div>`
+          :`<button class="btn btn-sm" style="background:var(--green);color:white;width:100%;justify-content:center;padding:13px;font-size:14px" onclick="updateLD('${id}',true)" type="button" ${!o.dispatchedDate?'disabled':''}>✅ Confirm Delivered — Record Current Time</button>`
+        }
+      </div>
+    </div>`;
+  }
+
+  html+=`<hr class="divider"><div class="btn-row">
+    <button class="btn btn-ghost btn-sm" onclick="closeDrawer()">Close</button>
+    ${role==='OC'||role==='MGR'?`<button class="btn btn-danger btn-sm" onclick="deleteOrder('${id}')">Delete SO</button>`:''}
+  </div>`;
+
+  document.getElementById('drawer').innerHTML=html;
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+function closeDrawer(e){
+  if(!e||e.target===document.getElementById('overlay')){
+    document.getElementById('overlay').classList.add('hidden');
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// UPDATE FUNCTIONS
+// ─────────────────────────────────────────────────────────
+function updateOC(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const origDate=document.getElementById('d-reqdate-orig').value||null;
+  const rev1=document.getElementById('d-reqdate-rev1').value||null;
+  const rev2=document.getElementById('d-reqdate-rev2').value||null;
+
+  o.ocReceivedDate=document.getElementById('d-ocreceived').value||o.soDate;
+  o.originalRequestedDate=origDate;
+  o.requestedDateRev1=rev1||null;
+  o.requestedDateRev2=rev2||null;
+  // effective date for KPI = latest rev, else original
+  o.requestedDate=rev2||rev1||origDate;
+  // if any rev exists, flag as customer-changed (not OC fault)
+  o.lastDateChangeReason=(rev1||rev2)?'customer':null;
+
+  o.status=document.getElementById('d-status').value;
+  o.remarks=document.getElementById('d-remarks').value.trim();
+  o.doNum=document.getElementById('d-do').value.trim()||null;
+  o.invNum=document.getElementById('d-inv').value.trim()||null;
+  o.doDate=document.getElementById('d-dodate').value||null;
+  o.lastUpdatedBy=currentUser.name;
+  o.lastUpdatedAt=new Date().toLocaleString('en-MY',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  saveDB(o);showToast('✅ OC update saved');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+function updateSK(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const pkdone=document.getElementById('d-pkdone').value;
+  const stockCard=document.getElementById('d-stockcard').value;
+  // Validate required fields
+  if(!pkdone){showToast('⚠️ Please fill in Picking Completed date');return}
+  if(!stockCard){showToast('⚠️ Please confirm if Stock Card is updated');return}
+  const skName=document.getElementById('d-sk').value.trim();
+  if(skName&&!o.storeKeepers.includes(skName)) o.storeKeepers.push(skName);
+  o.pickingStarted=document.getElementById('d-pkstart').value||null;
+  o.pickingCompleted=pkdone;
+  o.stockCardUpdated=stockCard;
+  const discrep=document.getElementById('d-discrep').value;
+  o.discrepancy=discrep;
+  if(discrep==='Yes'){
+    o.discrepancyNote=document.getElementById('d-discnote').value.trim();
+    o.discrepancyCause=document.getElementById('d-discrep-cause').value;
+  } else {
+    o.discrepancyNote='';o.discrepancyCause='';
+    o.discrepancySettled=null;
+    // if picking completed and no discrepancy, set pickingDone for ready stage
+    if(o.pickingCompleted) o.pickingDone=o.pickingCompleted;
+  }
+  saveDB(o);showToast('✅ Picking update saved');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+function toggleDiscrepFields(val){
+  document.getElementById('discrep-fields').style.display=val==='Yes'?'':'none';
+}
+
+function settleDiscrep(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  o.discrepancySettled=today();
+  o.pickingDone=o.pickingCompleted||today();
+  saveDB(o);showToast('✅ Discrepancy settled — order is now Ready to Ship');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+function updateLDDispatch(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const driverName=document.getElementById('d-driver').value.trim();
+  if(!driverName){showToast('⚠️ Please enter driver name');return}
+  const confirmed=document.getElementById('dispatch-confirm');
+  if(confirmed&&!confirmed.checked){showToast('⚠️ Please verify the DO number and check the box first');return}
+  o.driverName=driverName;
+  o.dispatchedDate=myDate();   // auto Malaysia date
+  o.dispatchedTime=myTime();   // auto Malaysia time
+  saveDB(o);
+  showToast('🚚 Marked as Dispatched — On The Way!');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+function updateLD(id, markDelivered){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  if(markDelivered){
+    o.deliveredDate=myDate();
+    o.deliveredTime=myTime();
+    if(!o.pickingDone) o.pickingDone=myDate();
+  }
+  o.deliveryError=document.getElementById('d-err').value;
+  o.deliveryErrorNote=document.getElementById('d-errnote').value.trim();
+  saveDB(o);
+  showToast(markDelivered?'✅ Marked as Delivered!':'✅ Delivery info saved');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+// ── PO / GR FUNCTIONS ──────────────────────────────────────────────────────
+function addPO(soId){
+  const o=db.orders.find(x=>x.id===soId);if(!o)return;
+  if(!o.poList) o.poList=[];
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('drawer').innerHTML=`
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">Add Purchase Order</div>
+    <div class="drawer-sub">SO: ${esc(o.soNum)} · ${esc(o.customer)}</div>
+    <div class="form-row" style="margin-top:16px">
+      <div class="fg"><label>PO Number *</label><input id="po-num" placeholder="e.g. PO-2026-001"></div>
+      <div class="fg"><label>Supplier Name *</label><input id="po-supplier" placeholder="Supplier name"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Expected Delivery Date</label><input type="date" id="po-expected"></div>
+      <div class="fg"><label>Remarks</label><input id="po-remarks" placeholder="Optional"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px" onclick="savePO('${soId}',null)" type="button">Save PO</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openSO('${soId}')" type="button">Cancel</button>
+    </div>`;
+}
+
+function editPO(soId, pi){
+  const o=db.orders.find(x=>x.id===soId);if(!o||!o.poList)return;
+  const p=o.poList[pi];
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('drawer').innerHTML=`
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">Edit PO ${pi+1}</div>
+    <div class="drawer-sub">SO: ${esc(o.soNum)}</div>
+    <div class="form-row" style="margin-top:16px">
+      <div class="fg"><label>PO Number</label><input id="po-num" value="${esc(p.poNum||'')}"></div>
+      <div class="fg"><label>Supplier Name</label><input id="po-supplier" value="${esc(p.supplier||'')}"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Expected Delivery Date</label><input type="date" id="po-expected" value="${p.expectedDate||''}"></div>
+      <div class="fg"><label>Remarks</label><input id="po-remarks" value="${esc(p.remarks||'')}"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px" onclick="savePO('${soId}',${pi})" type="button">Save Changes</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openSO('${soId}')" type="button">Cancel</button>
+    </div>`;
+}
+
+function keyGR(soId, pi){
+  const o=db.orders.find(x=>x.id===soId);if(!o||!o.poList)return;
+  const p=o.poList[pi];
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('drawer').innerHTML=`
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">📥 Key Goods Receipt</div>
+    <div class="drawer-sub">PO: ${esc(p.poNum)} · ${esc(p.supplier||'')}</div>
+    <div class="form-row" style="margin-top:16px">
+      <div class="fg"><label>GR Number *</label><input id="gr-num" placeholder="e.g. GR-2026-001"></div>
+      <div class="fg"><label>GR Date *</label><input type="date" id="gr-date" value="${today()}"></div>
+    </div>
+    <div class="form-row single">
+      <div class="fg"><label>Remarks</label><input id="gr-remarks" placeholder="Optional notes"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <button class="btn btn-teal" style="width:100%;justify-content:center;padding:13px" onclick="saveGR('${soId}',${pi})" type="button">✅ Confirm GR Received</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openSO('${soId}')" type="button">Cancel</button>
+    </div>`;
+}
+
+function savePO(soId, pi){
+  const o=db.orders.find(x=>x.id===soId);if(!o)return;
+  if(!o.poList) o.poList=[];
+  const poNum=document.getElementById('po-num').value.trim();
+  const supplier=document.getElementById('po-supplier').value.trim();
+  if(!poNum||!supplier){showToast('⚠️ PO Number and Supplier required');return}
+  const po={
+    poNum, supplier,
+    expectedDate:document.getElementById('po-expected').value||null,
+    remarks:document.getElementById('po-remarks').value.trim(),
+    grNum:pi!==null?o.poList[pi].grNum:null,
+    grDate:pi!==null?o.poList[pi].grDate:null,
+  };
+  if(pi===null) o.poList.push(po);
+  else o.poList[pi]=po;
+  saveDB(o);showToast('✅ PO saved');
+  openSO(soId);
+}
+
+function saveGR(soId, pi){
+  const o=db.orders.find(x=>x.id===soId);if(!o||!o.poList)return;
+  const grNum=document.getElementById('gr-num').value.trim();
+  const grDate=document.getElementById('gr-date').value;
+  if(!grNum||!grDate){showToast('⚠️ GR Number and Date required');return}
+  o.poList[pi].grNum=grNum;
+  o.poList[pi].grDate=grDate;
+  o.poList[pi].grRemarks=document.getElementById('gr-remarks').value.trim();
+  saveDB(o);showToast('📥 GR recorded — goods received!');
+  openSO(soId);
+}
+
+function removePO(soId, pi){
+  const o=db.orders.find(x=>x.id===soId);if(!o||!o.poList)return;
+  o.poList.splice(pi,1);
+  saveDB(o);showToast('PO removed');
+  openSO(soId);
+}
+
+function passToSK(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  o.passedToSK=today();
+  saveDB(o);showToast('📬 Passed to Storekeeper');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+function deleteOrder(id){
+  // use a drawer confirm instead of browser confirm (mobile-safe)
+  const drawer=document.getElementById('drawer');
+  drawer.innerHTML=`
+    <div class="drawer-handle"></div>
+    <div class="drawer-title" style="color:var(--red)">⚠️ Delete SO?</div>
+    <div class="drawer-sub">This cannot be undone.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
+      <button class="btn btn-danger" style="width:100%;justify-content:center;padding:13px;font-size:14px" onclick="confirmDelete('${id}')">Yes, Delete</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:13px" onclick="closeDrawer()">Cancel</button>
+    </div>`;
+}
+function confirmDelete(id){
+  db.orders=db.orders.filter(o=>o.id!==id);
+  deleteFromDB(id);showToast('Deleted');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+// ─────────────────────────────────────────────────────────
+// KPI TAB
+// ─────────────────────────────────────────────────────────
+function renderAdmin(){
+  if(currentUser.role!=='MGR') return `<div class="empty-state"><div class="empty-icon">🔒</div>Access denied</div>`;
+  return `
+  <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">Admin Panel</div>
+  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">Manage user accounts</div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><span class="card-title">➕ Add New User</span></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="fg"><label>Full Name *</label><input id="au-name" placeholder="e.g. Chai Fei Min"></div>
+        <div class="fg"><label>Username *</label><input id="au-user" placeholder="e.g. chaifm" autocapitalize="none"></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Password *</label><input id="au-pass" placeholder="Set a password"></div>
+        <div class="fg"><label>Role *</label>
+          <select id="au-role">
+            <option value="OC">📋 Operations Coordinator</option>
+            <option value="SK">📦 Storekeeper</option>
+            <option value="LD">🚚 Lorry Driver</option>
+            <option value="MGR">👑 Manager</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="addUser()" type="button">Add User</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">👥 All Users</span></div>
+    <div class="card-body" style="padding:0">
+      <div id="user-list" style="padding:8px 16px">
+        <div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">Loading users...</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function loadUserList(){
+  const el=document.getElementById('user-list');
+  if(!el) return;
+  try{
+    const {data,error}=await _sb.from('users').select('*').order('role').order('full_name');
+    if(error||!data){el.innerHTML='<div style="color:var(--red);font-size:12px;padding:12px">Failed to load users</div>';return}
+    if(data.length===0){el.innerHTML='<div style="color:var(--grey-400);font-size:12px;padding:12px">No users found</div>';return}
+    el.innerHTML=data.map(u=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--grey-100);flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--grey-800)">${esc(u.full_name)} <span style="font-size:11px;color:var(--grey-400)">@${esc(u.username)}</span></div>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <span class="badge ${u.role==='MGR'?'badge-purple':u.role==='OC'?'badge-blue':u.role==='SK'?'badge-teal':'badge-amber'}">${roleIcon(u.role)} ${roleName(u.role)}</span>
+            <span class="badge ${u.active?'badge-green':'badge-red'}">${u.active?'Active':'Inactive'}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-xs btn-ghost" onclick="editUser('${u.id}','${esc(u.full_name)}','${esc(u.username)}','${u.role}')" type="button">✏️ Edit</button>
+          <button class="btn btn-xs btn-ghost" onclick="resetPassword('${u.id}','${esc(u.full_name)}')" type="button">🔑 Reset PW</button>
+          <button class="btn btn-xs ${u.active?'btn-danger':'btn-teal'}" onclick="toggleUser('${u.id}',${u.active})" type="button">${u.active?'Deactivate':'Activate'}</button>
+        </div>
+      </div>`).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px;padding:12px">Error: '+e.message+'</div>';}
+}
+
+async function addUser(){
+  const name=document.getElementById('au-name').value.trim();
+  const username=document.getElementById('au-user').value.trim().toLowerCase();
+  const password=document.getElementById('au-pass').value;
+  const role=document.getElementById('au-role').value;
+  if(!name||!username||!password){showToast('⚠️ All fields required');return}
+  if(!/^[a-z0-9_]+$/.test(username)){showToast('⚠️ Username: letters, numbers, _ only');return}
+  const {error}=await _sb.from('users').insert({
+    id:Date.now().toString(),username,password,role,full_name:name,active:true
+  });
+  if(error){showToast('⚠️ '+(error.message||'Failed — username may already exist'));return}
+  ['au-name','au-user','au-pass'].forEach(id=>document.getElementById(id).value='');
+  showToast('✅ User added: '+name);
+  loadUserList();
+}
+
+async function resetPassword(userId, name){
+  const newPwd=prompt('Set new password for '+name+':');
+  if(!newPwd||newPwd.length<4){showToast('⚠️ Password must be at least 4 characters');return}
+  const {error}=await _sb.from('users').update({password:newPwd}).eq('id',userId);
+  if(error){showToast('⚠️ Failed to reset password');return}
+  showToast('✅ Password reset for '+name);
+}
+
+async function toggleUser(userId, currentlyActive){
+  const {error}=await _sb.from('users').update({active:!currentlyActive}).eq('id',userId);
+  if(error){showToast('⚠️ Failed to update user');return}
+  showToast(currentlyActive?'User deactivated':'User activated');
+  loadUserList();
+}
+
+function editUser(userId, fullName, username, role){
+  // Show edit drawer
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('drawer').innerHTML=`
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">✏️ Edit User</div>
+    <div class="drawer-sub">Update user details</div>
+    <div class="form-row" style="margin-top:16px">
+      <div class="fg"><label>Full Name *</label><input id="eu-name" value="${fullName}"></div>
+      <div class="fg"><label>Username *</label><input id="eu-username" value="${username}" autocapitalize="none" autocorrect="off"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Role *</label>
+        <select id="eu-role">
+          <option value="OC" ${role==='OC'?'selected':''}>📋 Operations Coordinator</option>
+          <option value="SK" ${role==='SK'?'selected':''}>📦 Storekeeper</option>
+          <option value="LD" ${role==='LD'?'selected':''}>🚚 Lorry Driver</option>
+          <option value="MGR" ${role==='MGR'?'selected':''}>👑 Manager</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px" onclick="saveEditUser('${userId}')" type="button">Save Changes</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closeDrawer()" type="button">Cancel</button>
+    </div>`;
+}
+
+async function saveEditUser(userId){
+  const name=document.getElementById('eu-name').value.trim();
+  const username=document.getElementById('eu-username').value.trim().toLowerCase();
+  const role=document.getElementById('eu-role').value;
+  if(!name||!username){showToast('⚠️ Name and username required');return}
+  if(!/^[a-z0-9_]+$/.test(username)){showToast('⚠️ Username: letters, numbers, _ only');return}
+  const {error}=await _sb.from('users').update({full_name:name,username,role}).eq('id',userId);
+  if(error){showToast('⚠️ '+(error.message||'Failed to update'));return}
+  showToast('✅ User updated');
+  document.getElementById('overlay').classList.add('hidden');
+  loadUserList();
+}
+
+function renderKPI(){
+  const role=currentUser.role;
+  const months=getMonths();
+  if(!selectedMonth&&months.length) selectedMonth=months[0];
+  const mOrders=selectedQuarter
+    ?db.orders.filter(o=>{const d=o.ocReceivedDate||o.soDate;return d>=window._qStart&&d<=window._qEnd+'-31';})
+    :selectedMonth?db.orders.filter(o=>(o.ocReceivedDate||o.soDate).startsWith(selectedMonth))
+    :db.orders;
+
+  let html=`<div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">My KPI</div>
+  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${selectedQuarter?selectedQuarter+' '+selectedQuarter==='Q1'?'Apr–Jun 2026':selectedQuarter==='Q2'?'Jul–Sep 2026':selectedQuarter==='Q3'?'Oct–Dec 2026':'Jan–Mar 2027':selectedMonth?monthLabel(selectedMonth):'All time'} · ${roleName(role)}</div>
+  <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">By Quarter</div>
+  <div class="month-chips" style="margin-bottom:8px">
+    ${[['Q1','2026-04','2026-06'],['Q2','2026-07','2026-09'],['Q3','2026-10','2026-12'],['Q4','2027-01','2027-03']]
+      .map(([q,s,e])=>`<button class="mchip ${selectedQuarter===q?'active':''}" onclick="kpiQuarter('${q}','${s}','${e}')">${q} ${q==='Q1'?'Apr-Jun':q==='Q2'?'Jul-Sep':q==='Q3'?'Oct-Dec':'Jan-Mar'}</button>`).join('')}
+  </div>
+  <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">By Month</div>
+  <div class="month-chips">
+    ${months.slice(0,6).map(m=>`<button class="mchip ${m===selectedMonth&&!selectedQuarter?'active':''}" onclick="kpiMonth('${m}')">${monthLabel(m)}</button>`).join('')}
+    <button class="mchip ${!selectedMonth&&!selectedQuarter?'active':''}" onclick="kpiMonth(null)">All</button>
+  </div>`;
+
+  // ── OC KPI ──────────────────────────────────────────────────────────────
+  if(role==='OC'||role==='MGR'){
+    // OC sees all orders (ocName filter removed — covers old data and shared responsibility)
+    const myOrders=mOrders;
+    const delivered=myOrders.filter(o=>o.deliveredDate);
+    // For OC KPI: if last date change was customer-requested, use original date for "fault" check
+    // but use final requestedDate for on-time check (customer changed it, so new date is the target)
+    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
+    const customerChangedDate=delivered.filter(o=>o.lastDateChangeReason==='customer');
+    const ocFaultLate=delivered.filter(o=>{
+      const ed=effectiveReqDate(o);
+      if(!ed||o.deliveredDate<=ed) return false;
+      if(o.lastDateChangeReason==='customer') return false;
+      return true;
+    });
+    const otPct=delivered.length?onTime.length/delivered.length:null;
+    const r1=otPct===null?null:otPct>=0.98?4:otPct>=0.95?3:otPct>=0.90?2:1;
+    const avgDays=delivered.length?delivered.reduce((s,o)=>s+daysBetween(o.soDate,o.deliveredDate),0)/delivered.length:null;
+    const r1b=ocFaultLate.length===0&&delivered.length>0?4:ocFaultLate.length<=1?3:ocFaultLate.length<=3?2:1;
+
+    // SO Processing Rate: OC Received → Pass to SK
+    const withOCReceived=mOrders.filter(o=>o.ocReceivedDate&&o.passedToSK);
+    const ocProcessDays=withOCReceived.map(o=>Math.max(0,daysBetween(o.ocReceivedDate,o.passedToSK)));
+    const avgOCProcess=ocProcessDays.length?ocProcessDays.reduce((a,b)=>a+b,0)/ocProcessDays.length:null;
+    const ocProcessOnTime=ocProcessDays.filter(d=>d<=1).length;
+    const ocProcessPct=ocProcessDays.length?ocProcessOnTime/ocProcessDays.length:null;
+    const r1c=ocProcessPct===null?null:ocProcessPct>=1?4:ocProcessPct>=0.90?3:ocProcessPct>=0.75?2:1;
+
+    // Operations Exe Handover: SO Date → OC Received Date
+    const withHandover=mOrders.filter(o=>o.ocReceivedDate&&o.soDate);
+    const handoverDays=withHandover.map(o=>Math.max(0,daysBetween(o.soDate,o.ocReceivedDate)));
+    const avgHandover=handoverDays.length?handoverDays.reduce((a,b)=>a+b,0)/handoverDays.length:null;
+    const maxHandover=handoverDays.length?Math.max(...handoverDays):null;
+    const delayedHandover=handoverDays.filter(d=>d>3).length;
+
+    // Monthly summary
+    const soReceivedThisPeriod=mOrders.length;
+    const deliveredThisPeriod=selectedMonth
+      ?db.orders.filter(o=>o.deliveredDate&&o.deliveredDate.startsWith(selectedMonth)).length
+      :selectedQuarter
+      ?db.orders.filter(o=>o.deliveredDate&&o.deliveredDate>=window._qStart&&o.deliveredDate<=window._qEnd+'-31').length
+      :db.orders.filter(o=>o.deliveredDate).length;
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">📋 Operations Coordinator KPIs</div>
+
+    <!-- Period Summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:var(--blue-lt);border:1px solid var(--blue-dim);border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;margin-bottom:2px">SO Received (by OC Received Date)</div>
+        <div style="font-size:22px;font-weight:800;color:var(--navy);font-family:'JetBrains Mono',monospace">${soReceivedThisPeriod}</div>
+      </div>
+      <div style="background:var(--green-lt);border:1px solid #86efac;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:2px">Delivered (by Delivered Date)</div>
+        <div style="font-size:22px;font-weight:800;color:var(--navy);font-family:'JetBrains Mono',monospace">${deliveredThisPeriod}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r1)}">${pct(otPct)}</div>
+        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
+        ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r1)}"></div></div>`:''}
+        ${r1?`<div class="rating-badge" style="background:${ratingColor(r1)}20;color:${ratingColor(r1)}">Rating ${r1} · ${ratingLabel(r1)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No completed deliveries yet</div>'}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 2 — OC-Fault Late Orders</div>
+        <div class="kpi-value" style="color:${ocFaultLate.length===0?'var(--green)':'var(--red)'}">${ocFaultLate.length}</div>
+        <div class="kpi-sub">Late orders caused by OC · Target: as low as possible</div>
+        ${delivered.length>0?`<div class="rating-badge" style="background:${ratingColor(r1b)}20;color:${ratingColor(r1b)}">Rating ${r1b} · ${ratingLabel(r1b)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet</div>'}
+        ${customerChangedDate.length>0?`<div style="font-size:10px;color:var(--blue);margin-top:4px">👤 ${customerChangedDate.length} customer date change(s) excluded</div>`:''}
+      </div>
+    </div>
+    <div class="kpi-card" style="margin-bottom:10px">
+      <div class="kpi-label">KPI 3 — Avg SO-to-Delivery Days</div>
+      <div class="kpi-value" style="color:var(--navy)">${avgDays?avgDays.toFixed(1)+'d':'—'}</div>
+      <div class="kpi-sub">Average days from SO creation to actual delivery · Target: as short as possible${delivered.length>0?' · Based on '+delivered.length+' delivered SO(s)':''}</div>
+    </div>
+    <div class="kpi-card" style="margin-bottom:14px">
+      <div class="kpi-label">KPI 4 — SO Processing Rate (OC Received → Pass to SK)</div>
+      <div class="kpi-value" style="color:${ratingColor(r1c)}">${pct(ocProcessPct)}</div>
+      <div class="kpi-sub">${ocProcessOnTime}/${ocProcessDays.length} passed to SK within 1 day · Target ≥ 90% · Avg: ${avgOCProcess!==null?avgOCProcess.toFixed(1)+'d':'—'}</div>
+      ${ocProcessPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(ocProcessPct,1)*100).toFixed(1)}%;background:${ratingColor(r1c)}"></div></div>`:''}
+      ${r1c?`<div class="rating-badge" style="background:${ratingColor(r1c)}20;color:${ratingColor(r1c)}">Rating ${r1c} · ${ratingLabel(r1c)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet — fill OC Received Date when creating SO</div>'}
+    </div>
+
+    <!-- Operations Exe Handover Summary -->
+    ${avgHandover!==null?`
+    <div style="background:var(--purple-lt);border:1px solid #c4b5fd;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px">📊 Operations Exe Handover Summary (SO Date → OC Received Date)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div>
+          <div style="font-size:10px;color:var(--grey-500);text-transform:uppercase;font-weight:700">Avg Handover</div>
+          <div style="font-size:18px;font-weight:800;color:var(--navy);font-family:'JetBrains Mono',monospace">${avgHandover.toFixed(1)}d</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--grey-500);text-transform:uppercase;font-weight:700">Max Handover</div>
+          <div style="font-size:18px;font-weight:800;color:${maxHandover>3?'var(--red)':'var(--navy)'};font-family:'JetBrains Mono',monospace">${maxHandover}d</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--grey-500);text-transform:uppercase;font-weight:700">>3 Days Late</div>
+          <div style="font-size:18px;font-weight:800;color:${delayedHandover>0?'var(--red)':'var(--green)'};font-family:'JetBrains Mono',monospace">${delayedHandover}</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--purple);margin-top:8px;font-style:italic">This data reflects Operations Exe performance — use for their KPI evaluation</div>
+        </div>`:''}
+    ${customerChangedDate.length>0?`<div style="background:var(--blue-lt);border:1px solid var(--blue-dim);border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">
+      👤 <strong>${customerChangedDate.length} order(s)</strong> had delivery date changed by customer — not counted as OC fault in KPI
+    </div>`:''}
+    <hr class="divider">`;
+  }
+
+  if(role==='SK'||role==='MGR'){
+    const skOrders=role==='SK'?mOrders.filter(o=>o.storeKeepers&&o.storeKeepers.includes(currentUser.name)):mOrders.filter(o=>o.storeKeepers&&o.storeKeepers.length>0);
+    const picked=skOrders.filter(o=>o.pickingDone);
+    const accurate=picked.filter(o=>o.discrepancy!=='Yes'||o.discrepancyCause==='goods'); // goods issue = not SK's fault
+    const withDiscrep=picked.filter(o=>o.discrepancy==='Yes');
+    const skFaultDiscrep=picked.filter(o=>o.discrepancy==='Yes'&&o.discrepancyCause==='sk');
+    const goodsFaultDiscrep=picked.filter(o=>o.discrepancy==='Yes'&&o.discrepancyCause==='goods');
+    const accPct=picked.length?accurate.length/picked.length:null;
+    const r2=accPct===null?null:accPct>=1?4:accPct>=0.98?3:accPct>=0.95?2:1;
+    const stockUpdated=picked.filter(o=>o.stockCardUpdated==='Yes');
+    const scPct=picked.length?stockUpdated.length/picked.length:null;
+    // list discrepancies for detail
+    const discrepList=withDiscrep.map(o=>`<div style="padding:6px 0;border-bottom:1px solid var(--grey-100);font-size:12px"><span class="mono" style="font-weight:700">${esc(o.soNum)}</span> · ${esc(o.customer)} · <span class="badge ${o.discrepancyCause==='sk'?'badge-red':'badge-amber'}">${o.discrepancyCause==='sk'?'⚠️ Picking Error':'🏷️ Goods Issue'}</span> · <span style="color:var(--grey-600)">${esc(o.discrepancyNote||'No details')}</span>${o.discrepancySettled?` · <span style="color:var(--green);font-weight:600">✅ Settled</span>`:` · <span style="color:var(--amber);font-weight:600">⏳ Pending</span>`}</div>`).join('');
+    // Picking duration KPI: passedToSK date → pickingCompleted date
+    const withDuration=picked.filter(o=>o.passedToSK&&o.pickingCompleted);
+    const avgPickDays=withDuration.length?withDuration.reduce((s,o)=>s+Math.max(0,daysBetween(o.passedToSK,o.pickingCompleted)),0)/withDuration.length:null;
+    const pickOnTarget=withDuration.filter(o=>daysBetween(o.passedToSK,o.pickingCompleted)<=1);
+    const pickTargetPct=withDuration.length?pickOnTarget.length/withDuration.length:null;
+    const r3=pickTargetPct===null?null:pickTargetPct>=1?4:pickTargetPct>=0.90?3:pickTargetPct>=0.75?2:1;
+    const scR=scPct===null?null:scPct>=1?4:scPct>=0.95?3:scPct>=0.80?2:1;
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">📦 Storekeeper KPIs</div>
+    <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 1 — Stock Accuracy Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r2)}">${pct(accPct)}</div>
+        <div class="kpi-sub">${accurate.length}/${picked.length} orders no picking error · Target ≥ 98%</div>
+        ${accPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(accPct,1)*100).toFixed(1)}%;background:${ratingColor(r2)}"></div></div>`:''}
+        ${r2?`<div class="rating-badge" style="background:${ratingColor(r2)}20;color:${ratingColor(r2)}">Rating ${r2} · ${ratingLabel(r2)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No completed picking yet</div>'}
+        ${skFaultDiscrep.length>0?`<div style="font-size:10px;color:var(--red);margin-top:4px">⚠️ ${skFaultDiscrep.length} picking error(s) counted</div>`:''}
+        ${goodsFaultDiscrep.length>0?`<div style="font-size:10px;color:var(--amber);margin-top:2px">🏷️ ${goodsFaultDiscrep.length} goods issue(s) excluded</div>`:''}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 2 — On-Time Picking</div>
+        <div class="kpi-value" style="color:${ratingColor(r3)}">${pct(pickTargetPct)}</div>
+        <div class="kpi-sub">${pickOnTarget.length}/${withDuration.length} within 1 day · Target ≥ 90%</div>
+        ${pickTargetPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(pickTargetPct,1)*100).toFixed(1)}%;background:${ratingColor(r3)}"></div></div>`:''}
+        ${r3?`<div class="rating-badge" style="background:${ratingColor(r3)}20;color:${ratingColor(r3)}">Rating ${r3} · ${ratingLabel(r3)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet</div>'}
+      </div>
+    </div>
+    <div class="kpi-card" style="margin-bottom:10px">
+      <div class="kpi-label">KPI 3 — Stock Card Updated</div>
+      <div class="kpi-value" style="color:${ratingColor(scR)}">${pct(scPct)}</div>
+      <div class="kpi-sub">${stockUpdated.length}/${picked.length} orders stock card updated · Target 100%</div>
+      ${scPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(scPct,1)*100).toFixed(1)}%;background:${ratingColor(scR)}"></div></div>`:''}
+      ${scR?`<div class="rating-badge" style="background:${ratingColor(scR)}20;color:${ratingColor(scR)}">Rating ${scR} · ${ratingLabel(scR)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No data yet</div>'}
+    </div>
+    ${withDiscrep.length>0?`<div class="card" style="margin-bottom:14px"><div class="card-head"><span class="card-title">⚠️ Discrepancy Details (${withDiscrep.length})</span></div><div class="card-body" style="padding:8px 16px">${discrepList}</div></div>`:''}
+    <hr class="divider">`;
+
+    // KPI 4: Discrepancy Rate
+    if(picked.length>0){
+      const discrepRate=picked.length?((skFaultDiscrep.length/picked.length)*100).toFixed(1)+'%':'—';
+      html+=`<div class="kpi-card" style="margin-bottom:10px">
+        <div class="kpi-label">KPI 4 — Discrepancy Rate (Picking Errors only)</div>
+        <div class="kpi-value" style="color:${skFaultDiscrep.length===0?'var(--green)':'var(--red)'}">${discrepRate}</div>
+        <div class="kpi-sub">${skFaultDiscrep.length} picking error(s) out of ${picked.length} orders · Target ≤ 2%</div>
+        ${skFaultDiscrep.length>0?`<div class="rating-badge" style="background:var(--red-lt);color:var(--red)">⚠️ Action required</div>`:`<div class="rating-badge" style="background:var(--green-lt);color:var(--green)">✅ No errors</div>`}
+      </div>`;
+    }
+
+    // KPI 5: Settlement Speed
+    if(withDiscrep.length>0){
+      const settled=withDiscrep.filter(o=>o.discrepancySettled&&o.pickingCompleted);
+      const settleDays=settled.map(o=>Math.max(0,daysBetween(o.pickingCompleted,o.discrepancySettled)));
+      const avgSettle=settleDays.length?(settleDays.reduce((a,b)=>a+b,0)/settleDays.length):null;
+      const pendingSettle=withDiscrep.filter(o=>!o.discrepancySettled).length;
+      html+=`<div class="kpi-card" style="margin-bottom:14px">
+        <div class="kpi-label">KPI 5 — Discrepancy Settlement Speed</div>
+        <div class="kpi-value" style="color:var(--navy)">${avgSettle!==null?avgSettle.toFixed(1)+'d':'—'}</div>
+        <div class="kpi-sub">${settled.length}/${withDiscrep.length} discrepancies settled · Target ≤ 1 day</div>
+        ${pendingSettle>0?`<div style="font-size:11px;color:var(--amber);margin-top:4px;font-weight:600">⏳ ${pendingSettle} pending settlement</div>`:''}
+      </div>`;
+    }
+  }
+
+  if(role==='LD'||role==='MGR'){
+    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName===currentUser.name||o.driverName===currentUser.username):mOrders.filter(o=>o.driverName);
+    const delivered=dOrders.filter(o=>o.deliveredDate);
+    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
+    const noError=delivered.filter(o=>o.deliveryError!=='Yes');
+    const otPct=delivered.length?onTime.length/delivered.length:null;
+    const accPct=delivered.length?noError.length/delivered.length:null;
+    const r3=otPct===null?null:otPct>=0.98?4:otPct>=0.95?3:otPct>=0.90?2:1;
+    const r4=accPct===null?null:accPct>=1?4:accPct>=0.98?3:accPct>=0.95?2:1;
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">🚚 Lorry Driver KPIs</div>
+    <div style="font-size:12px;color:var(--grey-500);margin-bottom:10px">Based on ${delivered.length} completed deliveries this period</div>
+    <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r3)}">${pct(otPct)}</div>
+        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
+        ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r3)}"></div></div>`:''}
+        ${r3?`<div class="rating-badge" style="background:${ratingColor(r3)}20;color:${ratingColor(r3)}">Rating ${r3} · ${ratingLabel(r3)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">KPI 2 — Delivery Accuracy Rate</div>
+        <div class="kpi-value" style="color:${ratingColor(r4)}">${pct(accPct)}</div>
+        <div class="kpi-sub">${noError.length}/${delivered.length} no delivery error · Target ≥ 98%</div>
+        ${accPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(accPct,1)*100).toFixed(1)}%;background:${ratingColor(r4)}"></div></div>`:''}
+        ${r4?`<div class="rating-badge" style="background:${ratingColor(r4)}20;color:${ratingColor(r4)}">Rating ${r4} · ${ratingLabel(r4)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
+      </div>
+    </div>`;
+  }
+
+  return html;
+}
+
+function kpiCard(label,value,sub,rating,pctVal){
+  const color=rating?ratingColor(rating):'var(--navy)';
+  const barW=pctVal!==null&&pctVal!==undefined?(Math.min(pctVal,1)*100).toFixed(1)+'%':'0%';
+  const barColor=rating?ratingColor(rating):'var(--blue)';
+  return`<div class="kpi-card">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value" style="color:${color}">${value}</div>
+    <div class="kpi-sub">${sub}</div>
+    ${pctVal!==null&&pctVal!==undefined?`<div class="kpi-bar"><div class="kpi-fill" style="width:${barW};background:${barColor}"></div></div>`:''}
+    ${rating?`<div class="rating-badge" style="background:${barColor}20;color:${barColor}">Rating ${rating} · ${ratingLabel(rating)}</div>`:''}
+  </div>`;
+}
+
+let selectedQuarter=null;
+function kpiMonth(m){selectedMonth=m;selectedQuarter=null;document.getElementById('main-content').innerHTML=renderKPI()}
+function kpiQuarter(q,start,end){
+  selectedQuarter=q;selectedMonth=null;
+  // store quarter range for filtering
+  window._qStart=start;window._qEnd=end;
+  document.getElementById('main-content').innerHTML=renderKPI();
+}
+
+// ─────────────────────────────────────────────────────────
+// EXPORT TAB
+// ─────────────────────────────────────────────────────────
+function renderExport(){
+  const months=getMonths();
+  return`
+  <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">Export & Archive</div>
+  <div style="font-size:12px;color:var(--grey-500);margin-bottom:20px">Download records or clear old SOs to free up space</div>
+  <div style="background:var(--green-lt);border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--green);font-weight:600">
+    🌐 Connected to Supabase — all data is live and shared across all users
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-title">Select period to export</span></div>
+    <div class="card-body">
+      <div class="fg" style="margin-bottom:16px">
+        <label>Month</label>
+        <select id="exp-month">
+          <option value="">All records</option>
+          ${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="exportCSV('orders')">⬇ Download Order Log</button>
+        <button class="btn btn-teal" onclick="exportCSV('kpi')">⬇ Download KPI Summary</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-title">⚠️ Data Backup</span></div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--grey-600);margin-bottom:12px">Export all data as JSON backup. Import it back if you switch devices or clear browser cache.</p>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="exportBackup()">⬇ Export Backup (JSON)</button>
+        <label class="btn btn-ghost" style="cursor:pointer">📂 Import Backup <input type="file" accept=".json" style="display:none" onchange="importBackup(this)"></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">🗑️ Clear Old SOs</span></div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--grey-600);margin-bottom:12px">Remove old <strong>Delivered</strong> SOs to free up database space. Always export a backup first!</p>
+      <div class="fg" style="margin-bottom:12px">
+        <label>Clear SOs with SO Date in year</label>
+        <select id="archive-year" style="max-width:200px">
+          ${[...new Set(db.orders.filter(o=>o.deliveredDate).map(o=>o.soDate.slice(0,4)))].sort().reverse()
+            .map(y=>`<option value="${y}">${y} (${db.orders.filter(o=>o.soDate.startsWith(y)&&o.deliveredDate).length} delivered SOs)</option>`).join('')||'<option value="">No delivered SOs found</option>'}
+        </select>
+      </div>
+      <div id="archive-preview" style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;display:none">
+        <div id="archive-preview-text"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" onclick="previewArchive()" type="button">👁 Preview</button>
+        <button class="btn btn-danger" onclick="confirmArchive()" type="button" id="archive-btn" style="display:none">🗑️ Clear Selected Year</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function previewArchive(){
+  const year = document.getElementById('archive-year').value;
+  if(!year){showToast('No year selected');return}
+  const toDelete = db.orders.filter(o=>o.soDate.startsWith(year)&&o.deliveredDate);
+  const notDelivered = db.orders.filter(o=>o.soDate.startsWith(year)&&!o.deliveredDate);
+  const preview = document.getElementById('archive-preview');
+  const previewText = document.getElementById('archive-preview-text');
+  const archiveBtn = document.getElementById('archive-btn');
+  preview.style.display='';
+  previewText.innerHTML = `
+    <div style="font-weight:700;color:var(--red);margin-bottom:6px">⚠️ This will permanently delete:</div>
+    <div>• <strong>${toDelete.length} Delivered SOs</strong> from ${year}</div>
+    ${notDelivered.length>0?`<div style="color:var(--amber);margin-top:4px">• ${notDelivered.length} SOs from ${year} are NOT delivered — they will NOT be deleted</div>`:''}
+    <div style="margin-top:8px;color:var(--grey-600)">Please export a backup before clearing!</div>`;
+  archiveBtn.style.display = toDelete.length>0?'':'none';
+}
+
+async function confirmArchive(){
+  const year = document.getElementById('archive-year').value;
+  if(!year) return;
+  const toDelete = db.orders.filter(o=>o.soDate.startsWith(year)&&o.deliveredDate);
+  if(toDelete.length===0){showToast('Nothing to delete');return}
+  showToast('⏳ Deleting '+toDelete.length+' SOs...');
+  let deleted=0;
+  for(const o of toDelete){
+    await deleteFromDB(o.id);
+    db.orders = db.orders.filter(x=>x.id!==o.id);
+    deleted++;
+  }
+  showToast('✅ Deleted '+deleted+' SOs from '+year);
+  document.getElementById('archive-preview').style.display='none';
+  document.getElementById('archive-btn').style.display='none';
+  document.getElementById('main-content').innerHTML=renderExport();
+}
+
+function exportCSV(type){
+  const month=document.getElementById('exp-month').value;
+  let orders=[...db.orders].sort((a,b)=>a.soDate.localeCompare(b.soDate));
+  if(month) orders=orders.filter(o=>o.soDate.startsWith(month));
+
+  const BOM='\uFEFF';
+  let csv='';
+
+  if(type==='orders'){
+    const heads=['SO Number','Customer','SO Date','Requested Delivery Date','Delivery Type','Status','DO Number','Invoice Number','DO Date','Storekeeper(s)','Picking Started','Picking Done','Stock Card Updated','Discrepancy','Discrepancy Note','Driver','Actual Delivery Date','On Time?','Delivery Error?','Error Note','Total Days SO→Delivery','Remarks'];
+    csv=heads.join(',')+'\r\n';
+    csv+=orders.map(o=>{
+      const onTime=o.requestedDate&&o.deliveredDate?(o.deliveredDate<=o.requestedDate?'Yes':'No'):'';
+      const days=o.deliveredDate?daysBetween(o.soDate,o.deliveredDate):'';
+      return[o.soNum,o.customer,fmt(o.soDate),fmt(o.requestedDate),o.deliveryType||'',o.status||'Active',
+        o.doNum||'',o.invNum||'',fmt(o.doDate),(o.storeKeepers||[]).join('; '),
+        fmt(o.pickingStarted),fmt(o.pickingDone),o.stockCardUpdated||'',o.discrepancy||'No',o.discrepancyNote||'',
+        o.driverName||'',fmt(o.deliveredDate),onTime,o.deliveryError||'No',o.deliveryErrorNote||'',days,o.remarks||'']
+        .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+    }).join('\r\n');
+  } else {
+    // KPI summary
+    const delivered=orders.filter(o=>o.deliveredDate);
+    const onTimeDelivered=delivered.filter(o=>o.requestedDate&&o.deliveredDate<=o.requestedDate);
+    const picked=orders.filter(o=>o.pickingDone);
+    const accurate=picked.filter(o=>o.discrepancy!=='Yes'||o.discrepancyCause==='goods'); // goods issue = not SK's fault
+    const noErrDel=delivered.filter(o=>o.deliveryError!=='Yes');
+    csv='KPI Summary\r\n';
+    csv+=`Period,${month?monthLabel(month):'All Records'}\r\n\r\n`;
+    csv+='OC KPIs\r\n';
+    csv+=`Total SOs,${orders.length}\r\nDelivered,${delivered.length}\r\nOn-Time Delivery Rate,${pct(delivered.length?onTimeDelivered.length/delivered.length:null)}\r\n\r\n`;
+    csv+='Storekeeper KPIs\r\n';
+    csv+=`Orders Picked,${picked.length}\r\nStock Accuracy Rate,${pct(picked.length?accurate.length/picked.length:null)}\r\n\r\n`;
+    csv+='Lorry Driver KPIs\r\n';
+    csv+=`Deliveries Made,${delivered.length}\r\nOn-Time Rate,${pct(delivered.length?onTimeDelivered.length/delivered.length:null)}\r\nAccuracy Rate,${pct(delivered.length?noErrDel.length/delivered.length:null)}\r\n`;
+  }
+
+  const blob=new Blob([BOM+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`MACFIL_${type==='orders'?'OrderLog':'KPISummary'}_${month||'All'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('⬇ Download started');
+}
+
+function exportBackup(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`MACFIL_Backup_${today()}.json`;a.click();
+  URL.revokeObjectURL(url);
+  showToast('⬇ Backup downloaded');
+}
+
+async function importBackup(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.orders)throw new Error('Invalid format');
+      showToast('⏳ Importing...');
+      for(const order of data.orders){
+        const {id,...odata}=order;
+        await _sb.from('orders').upsert({id,data:odata,updated_at:new Date().toISOString()});
+      }
+      await loadDB();
+      showToast('✅ Data imported ('+data.orders.length+' orders)');
+      switchTab('orders');
+    }catch(err){showToast('⚠️ Import failed: '+err.message);}
+  };
+  reader.readAsText(file);
+}
+</script>
+</body>
+</html>
+HTMLEOF
