@@ -1012,41 +1012,60 @@ function renderDashboard(){
     </div>
   </div>
 
-  <!-- Customers with pending orders -->
+  <!-- Pending Delivery grouped by stage -->
   <div class="card">
     <div class="card-head"><span class="card-title">🚨 Pending Delivery — ${pending.length} SO(s)</span></div>
     <div class="card-body" style="padding:10px 16px">
-      ${pendCusts.length===0
+      ${pending.length===0
         ?`<div style="text-align:center;color:var(--green);font-size:13px;font-weight:600;padding:12px">✅ All orders delivered!</div>`
         :(()=>{
-          // Show each pending SO individually with SO number and effective delivery date
-          const pendingSOs = pending.sort((a,b)=>{
-            const da = a.requestedDate||'9999';
-            const db2 = b.requestedDate||'9999';
-            return da.localeCompare(db2);
-          });
-          return pendingSOs.map(o=>{
-            const effDate = o.requestedDateRev2||o.requestedDateRev1||o.requestedDate||null;
-            const isRevised = !!(o.requestedDateRev1||o.requestedDateRev2);
-            const stage = stageOf(o);
-            return `
-            <div style="padding:8px 0;border-bottom:1px solid var(--grey-100)">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
-                <div>
-                  <div style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy)">${esc(o.soNum)}</div>
-                  <div style="font-size:13px;font-weight:600;color:var(--grey-800);margin-top:1px">${esc(o.customer)}</div>
-                </div>
-                <div style="text-align:right">
-                  <span class="badge ${stagePillClass(stage)}" style="font-size:10px">${stageLabel(stage)}</span>
-                  ${effDate?`<div style="font-size:11px;margin-top:4px;font-weight:600;color:${isRevised?'var(--amber)':'var(--grey-600)'}">
-                    ${isRevised?'👤 Rev: ':'📅 '}${fmt(effDate)}
-                  </div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:4px">No date set</div>'}
-                  <div style="font-size:11px;margin-top:3px;font-weight:600;font-family:'JetBrains Mono',monospace;color:${o.doNum?'var(--teal)':'var(--amber)'}">
-                    ${o.doNum?'DO: '+esc(o.doNum):'⚠️ Pending DO'}
+          const groups=[
+            {key:'awaitingGoods', icon:'⏳', label:'Awaiting Goods', color:'var(--purple)', desc:'Waiting for goods from supplier'},
+            {key:'pendingSK',     icon:'📬', label:'Pending SK',     color:'var(--amber)', desc:'Passed to SK, not started'},
+            {key:'picking',      icon:'📦', label:'Picking',        color:'var(--blue)',  desc:'SK is picking goods'},
+            {key:'pendingDiscrep',icon:'⚠️','label':'Pending Discrepancy', color:'var(--red)', desc:'Discrepancy needs to be settled'},
+            {key:'pendingDO',    icon:'📄', label:'Pending DO',     color:'var(--amber)', desc:'Picking done, waiting for DO'},
+            {key:'ready',        icon:'✅', label:'Ready to Ship',  color:'var(--teal)',  desc:'Ready, waiting for driver'},
+            {key:'dispatched',   icon:'🚚', label:'Dispatched',     color:'var(--blue)',  desc:'Driver on the way'},
+          ];
+          return groups.map(g=>{
+            const gOrders=pending.filter(o=>stageOf(o)===g.key)
+              .sort((a,b)=>(effectiveReqDate(a)||'9999').localeCompare(effectiveReqDate(b)||'9999'));
+            if(!gOrders.length) return '';
+            return '<div style="margin-bottom:14px">'
+              +'<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:'+g.color+'18;border-left:3px solid '+g.color+';border-radius:0 6px 6px 0;margin-bottom:6px">'
+              +'<span style="font-size:14px">'+g.icon+'</span>'
+              +'<span style="font-size:12px;font-weight:700;color:'+g.color+'">'+g.label+' ('+gOrders.length+')</span>'
+              +'<span style="font-size:10px;color:var(--grey-400)">'+g.desc+'</span>'
+              +'</div>'
+              +gOrders.map(o=>{
+                const effDate=effectiveReqDate(o);
+                const isRevised=!!(o.requestedDateRev1||o.requestedDateRev2);
+                const skList=o.storeKeepers&&o.storeKeepers.length?o.storeKeepers.join(', '):'—';
+                const poList=o.poList&&o.poList.length?o.poList.map(p=>esc(p.poNum)).join(', '):'';
+                const unreceivedPO=o.poList?o.poList.filter(p=>!p.grNum).length:0;
+                const subInfo = g.key==='awaitingGoods'?`<span style="color:var(--amber)">⏳ ${unreceivedPO} PO(s) not received</span>`
+                  :g.key==='picking'||g.key==='pendingSK'?`SK: ${esc(skList)}${poList?' · PO: '+poList:''}`
+                  :g.key==='pendingDO'?`SK: ${esc(skList)} · <span style="color:var(--amber)">Waiting for OC to issue DO</span>`
+                  :g.key==='ready'?`DO: ${o.doNum?esc(o.doNum):'—'}${o.invNum?' · INV: '+esc(o.invNum):''}`
+                  :g.key==='dispatched'?`Driver: ${esc(o.driverName||'—')}${o.dispatchedTime?' · '+o.dispatchedTime:''}`
+                  :g.key==='pendingDiscrep'?`<span style="color:var(--red)">${esc(o.discrepancyNote||'Discrepancy pending settlement')}</span>`
+                  :'';
+                return `<div onclick="openSOFromDash('${o.id}')" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 10px;background:white;border:1px solid var(--grey-100);border-radius:7px;margin-bottom:4px;cursor:pointer">
+                  <div style="min-width:0">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
+                      <span style="font-size:12px;color:var(--grey-700);font-weight:600">${esc(o.customer)}</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--grey-500);margin-top:3px">${subInfo}</div>
                   </div>
-                </div>
-              </div>
-            </div>`;
+                  <div style="text-align:right;flex-shrink:0">
+                    ${effDate?`<div style="font-size:11px;font-weight:600;color:${isRevised?'var(--amber)':'var(--grey-600)'}">${isRevised?'👤 ':'📅 '}${fmt(effDate)}</div>`:'<div style="font-size:10px;color:var(--grey-400)">No date</div>'}
+                    ${o.doNum?`<div style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--teal);margin-top:2px">${esc(o.doNum)}</div>`:''}
+                  </div>
+                </div>`;
+              }).join('')
+              +'</div>';
           }).join('');
         })()}
     </div>
@@ -1216,6 +1235,12 @@ function renderPOPanel(){
       </div>
     </div>
   `).join('');
+}
+
+function openSOFromDash(id){
+  // Switch to orders tab and open the SO drawer
+  switchTab('orders');
+  setTimeout(()=>openSO(id), 300);
 }
 
 function filterMonth(m){
