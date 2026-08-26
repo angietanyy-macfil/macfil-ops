@@ -1282,7 +1282,7 @@ function renderSOCard(o){
     </div>
     <div style="margin-top:6px;font-size:11px;color:var(--grey-400)">
       ${storeList!=='—'?`Storekeeper: ${esc(storeList)} · `:''}
-      ${o.driverName?`Driver: ${esc(o.driverName)} · `:''}
+      ${o.driverName?`Driver: ${esc(o.driverName)}${o.lorryDisplay?' ('+esc(o.lorryDisplay)+')':''} · `:''}
       ${o.poList&&o.poList.length?`<span style="color:var(--purple);font-weight:600">PO: ${o.poList.map(p=>esc(p.poNum)).join(', ')}</span>`:''}
     </div>
     ${o.remarks?`<div style="margin-top:4px;font-size:12px;font-weight:700;color:var(--red)">⚠️ ${esc(o.remarks)}</div>`:''}
@@ -1439,7 +1439,9 @@ function openSO(id){
        ['Delivery Type',o.deliveryType||'—'],['Status',o.status||'Active'],
        ['DO Number',o.doNum||'—'],['INV Number',o.invNum||'—'],
        ['Actual Delivery',(o.deliveredDate?fmt(o.deliveredDate)+(o.deliveredTime?' '+o.deliveredTime:''):'—')],
-       ['Total Days',o.deliveredDate?daysBetween(o.soDate,o.deliveredDate)+'d':'In progress']]
+       ['Total Days',o.deliveredDate?daysBetween(o.soDate,o.deliveredDate)+'d':'In progress'],
+       ...(o.lorryDisplay?[['Lorry',esc(o.lorryDisplay)]]:[] ),
+       ...(o.mileageTotal?[['Trip Mileage',o.mileageTotal+' KM']]:[])]
       .map(([l,v])=>`<div><div style="font-size:10px;font-weight:700;color:var(--grey-500);text-transform:uppercase;margin-bottom:2px">${l}</div><div style="font-weight:600;color:var(--grey-800)">${v}</div></div>`).join('')}
   </div>
   ${(o.discrepancy==='Yes'||o.discrepancyNote)?`
@@ -1599,6 +1601,34 @@ function openSO(id){
         <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">📤 Step 1 — Dispatch (On The Way)</div>
         <div class="form-row">
           <div class="fg"><label>Driver Name</label><input id="d-driver" value="${esc(currentUser.role==='LD'?currentUser.name:o.driverName||'')}"></div>
+          <div class="fg">
+            <label>Lorry Number</label>
+            <select id="d-lorry" onchange="toggleLorryRemark(this.value)">
+              <option value="">— Select Lorry —</option>
+              <option value="WA4913Q" ${o.lorryNumber==='WA4913Q'?'selected':''}>WA4913Q</option>
+              <option value="VMJ8882" ${o.lorryNumber==='VMJ8882'?'selected':''}>VMJ8882</option>
+              <option value="JVS8882" ${o.lorryNumber==='JVS8882'?'selected':''}>JVS8882</option>
+              <option value="Other" ${o.lorryNumber==='Other'?'selected':''}>Other</option>
+            </select>
+          </div>
+          <div class="fg" id="d-lorry-remark-grp" style="${o.lorryNumber==='Other'?'':'display:none'}">
+            <label>Other Lorry Number</label>
+            <input id="d-lorry-remark" placeholder="Enter lorry number" value="${esc(o.lorryNumberOther||'')}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="fg">
+            <label>Mileage Before (KM)</label>
+            <input type="number" id="d-mileage-before" placeholder="e.g. 12450" value="${o.mileageBefore||''}">
+          </div>
+          <div class="fg">
+            <label>Mileage After (KM)</label>
+            <input type="number" id="d-mileage-after" placeholder="e.g. 12580" value="${o.mileageAfter||''}">
+          </div>
+          <div class="fg">
+            <label>Total KM (Auto)</label>
+            <input type="number" id="d-mileage-total" placeholder="Auto calculated" value="${o.mileageBefore&&o.mileageAfter?o.mileageAfter-o.mileageBefore:''}" readonly style="background:var(--grey-50);color:var(--grey-500)">
+          </div>
         </div>
         ${o.dispatchedDate
           ?`<div style="background:var(--blue-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--blue);font-weight:600">🚚 Dispatched on ${fmt(o.dispatchedDate)} at ${o.dispatchedTime||'—'} (Malaysia Time)</div>`
@@ -1728,6 +1758,22 @@ function settleDiscrep(id){
   document.getElementById('main-content').innerHTML=renderOrders();
 }
 
+function toggleLorryRemark(val){
+  const grp=document.getElementById('d-lorry-remark-grp');
+  if(grp) grp.style.display=val==='Other'?'':'none';
+}
+
+// Auto-calculate total mileage
+document.addEventListener('input',function(e){
+  if(e.target.id==='d-mileage-before'||e.target.id==='d-mileage-after'){
+    const before=parseFloat(document.getElementById('d-mileage-before')?.value)||0;
+    const after=parseFloat(document.getElementById('d-mileage-after')?.value)||0;
+    const total=document.getElementById('d-mileage-total');
+    if(total&&before&&after&&after>before) total.value=after-before;
+    else if(total) total.value='';
+  }
+});
+
 function updateLDDispatch(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   const driverName=document.getElementById('d-driver').value.trim();
@@ -1735,8 +1781,17 @@ function updateLDDispatch(id){
   const confirmed=document.getElementById('dispatch-confirm');
   if(confirmed&&!confirmed.checked){showToast('⚠️ Please verify the DO number and check the box first');return}
   o.driverName=driverName;
-  o.dispatchedDate=myDate();   // auto Malaysia date
-  o.dispatchedTime=myTime();   // auto Malaysia time
+  const lorryVal=document.getElementById('d-lorry').value;
+  o.lorryNumber=lorryVal||null;
+  o.lorryNumberOther=lorryVal==='Other'?document.getElementById('d-lorry-remark').value.trim():null;
+  o.lorryDisplay=lorryVal==='Other'?(document.getElementById('d-lorry-remark').value.trim()||'Other'):lorryVal;
+  const mBefore=document.getElementById('d-mileage-before').value;
+  const mAfter=document.getElementById('d-mileage-after').value;
+  o.mileageBefore=mBefore?parseFloat(mBefore):null;
+  o.mileageAfter=mAfter?parseFloat(mAfter):null;
+  o.mileageTotal=(mBefore&&mAfter&&parseFloat(mAfter)>parseFloat(mBefore))?parseFloat(mAfter)-parseFloat(mBefore):null;
+  o.dispatchedDate=myDate();
+  o.dispatchedTime=myTime();
   saveDB(o);
   showToast('🚚 Marked as Dispatched — On The Way!');
   document.getElementById('overlay').classList.add('hidden');
@@ -1749,6 +1804,12 @@ function updateLD(id, markDelivered){
     o.deliveredDate=myDate();
     o.deliveredTime=myTime();
     if(!o.pickingDone) o.pickingDone=myDate();
+    // update mileage after if filled
+    const mAfterD=document.getElementById('d-mileage-after');
+    if(mAfterD&&mAfterD.value){
+      o.mileageAfter=parseFloat(mAfterD.value);
+      if(o.mileageBefore) o.mileageTotal=o.mileageAfter-o.mileageBefore;
+    }
   }
   o.deliveryError=document.getElementById('d-err').value;
   o.deliveryErrorNote=document.getElementById('d-errnote').value.trim();
