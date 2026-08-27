@@ -237,10 +237,10 @@ const TABLE = "invoice_submissions";
 const USERS_TABLE = "invoice_tracker_users";
 /* ======================================================================= */
 
-let supabase = null;
+let sbClient = null;
 try {
   if(!window.supabase){ throw new Error('Supabase library did not load (blocked network or CDN down)'); }
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch(e) { console.error("Supabase init failed", e); }
 
 let invoices = [];
@@ -396,31 +396,31 @@ function daysBetween(a,b){ if(!a||!b) return null; return Math.round((new Date(b
 
 /* ---------- data load ---------- */
 async function loadInvoices(){
-  if(!supabase) return;
-  const { data, error } = await supabase.from(TABLE).select('*').order('created_at', {ascending:false});
+  if(!sbClient) return;
+  const { data, error } = await sbClient.from(TABLE).select('*').order('created_at', {ascending:false});
   if(error){ console.error(error); toast('Failed to load data'); return; }
   invoices = (data || []).map(r => ({...r, followups: r.followups || []}));
   render();
 }
 
 async function saveInvoice(record){
-  if(!supabase){ toast('Supabase not connected'); return null; }
-  const { data, error } = await supabase.from(TABLE).insert([record]).select();
+  if(!sbClient){ toast('Supabase not connected'); return null; }
+  const { data, error } = await sbClient.from(TABLE).insert([record]).select();
   if(error){ console.error(error); toast('Failed to save'); return null; }
   return data[0];
 }
 async function updateInvoice(id, fields){
-  if(!supabase){ toast('Supabase not connected'); return; }
-  const { error } = await supabase.from(TABLE).update(fields).eq('id', id);
+  if(!sbClient){ toast('Supabase not connected'); return; }
+  const { error } = await sbClient.from(TABLE).update(fields).eq('id', id);
   if(error){ console.error(error); toast('Update failed'); return; }
   loadInvoices();
 }
 
 /* ---------- user management ---------- */
 async function loadUsers(){
-  if(!supabase) return { ok:false, reason:'no-client' };
+  if(!sbClient) return { ok:false, reason:'no-client' };
   try{
-    const { data, error } = await supabase.from(USERS_TABLE).select('*').order('created_at', {ascending:true});
+    const { data, error } = await sbClient.from(USERS_TABLE).select('*').order('created_at', {ascending:true});
     if(error){ console.error(error); return { ok:false, reason: error.message || 'query-error' }; }
     users = data || [];
     return { ok:true };
@@ -430,22 +430,22 @@ async function loadUsers(){
   }
 }
 async function addUser(username, password, role, displayName){
-  if(!supabase){ toast('Supabase not connected'); return; }
-  const { error } = await supabase.from(USERS_TABLE).insert([{
+  if(!sbClient){ toast('Supabase not connected'); return; }
+  const { error } = await sbClient.from(USERS_TABLE).insert([{
     username, password, role, display_name: displayName, active: true, created_at: nowMY_iso()
   }]);
   if(error){ console.error(error); toast('Failed to add user'); return; }
   toast('User added'); await loadUsers(); render();
 }
 async function resetUserPassword(username, newPassword){
-  if(!supabase){ toast('Supabase not connected'); return; }
-  const { error } = await supabase.from(USERS_TABLE).update({ password: newPassword }).eq('username', username);
+  if(!sbClient){ toast('Supabase not connected'); return; }
+  const { error } = await sbClient.from(USERS_TABLE).update({ password: newPassword }).eq('username', username);
   if(error){ console.error(error); toast('Failed to update password'); return; }
   toast('Password updated'); await loadUsers(); render();
 }
 async function toggleUserActive(username, active){
-  if(!supabase) return;
-  const { error } = await supabase.from(USERS_TABLE).update({ active }).eq('username', username);
+  if(!sbClient) return;
+  const { error } = await sbClient.from(USERS_TABLE).update({ active }).eq('username', username);
   if(error){ console.error(error); toast('Failed to update user'); return; }
   await loadUsers(); render();
 }
@@ -512,8 +512,8 @@ async function markPortalSuccess(id){ await updateInvoice(id, { portal_success_d
 
 function confirmInline(id){ const el = document.getElementById('del-confirm-'+id); if(el) el.style.display='flex'; }
 async function reallyDelete(id){
-  if(!supabase) return;
-  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  if(!sbClient) return;
+  const { error } = await sbClient.from(TABLE).delete().eq('id', id);
   if(error){ toast('Delete failed'); return; }
   toast('Removed'); loadInvoices();
 }
@@ -661,8 +661,8 @@ document.getElementById('searchBox').addEventListener('input', (e)=>{
 document.getElementById('newInvoiceDate').value = todayISO_MY();
 loadInvoices();
 
-if(supabase){
-  supabase.channel('invoice_submissions_changes')
+if(sbClient){
+  sbClient.channel('invoice_submissions_changes')
     .on('postgres_changes', {event:'*', schema:'public', table: TABLE}, () => loadInvoices())
     .subscribe();
 }
