@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Invoice Portal Submission Tracker | MACFIL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.0/supabase.min.js"></script>
+<style>
+  :root{
+    --navy:#132a4e; --navy-deep:#0b1c36; --steel:#3d5a80;
+    --paper:#f4f6f9; --card:#ffffff; --line:#dfe4ea; --ink:#1b2430; --muted:#6b7686;
+    --ok:#1f7a4d; --ok-bg:#e6f4ec; --warn:#a15c00; --warn-bg:#fdf1de;
+    --bad:#b3261e; --bad-bg:#fbe9e7; --gold:#d9a441;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif; background:var(--paper); color:var(--ink); padding-bottom:60px;}
+  header{background:linear-gradient(135deg,var(--navy-deep),var(--navy) 70%); color:#fff; padding:22px 18px 26px; position:relative;}
+  header .brand{display:flex; align-items:center; gap:10px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; opacity:.75; margin-bottom:6px;}
+  header h1{margin:0; font-size:20px; font-weight:700;}
+  header p{margin:6px 0 0; font-size:13px; opacity:.8; max-width:540px; line-height:1.5;}
+  .rating-chip{position:absolute; top:20px; right:16px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); border-radius:10px; padding:8px 14px; text-align:center; min-width:64px;}
+  .rating-chip .num{font-size:22px; font-weight:800; line-height:1;}
+  .rating-chip .lbl{font-size:10px; opacity:.75; letter-spacing:.06em; text-transform:uppercase;}
+  main{max-width:780px; margin:0 auto; padding:16px;}
+  .banner{background:#eaf1fb; border:1px solid #cfe0f5; color:var(--navy); border-radius:8px; padding:9px 12px; font-size:12px; margin-bottom:12px; line-height:1.5;}
+  .userbar{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:14px; font-size:13px;}
+  .userbar select{flex:1; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px;}
+  .userbar label{color:var(--muted); white-space:nowrap;}
+  .summary-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px;}
+  @media(min-width:600px){.summary-grid{grid-template-columns:repeat(4,1fr);}}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px;}
+  .stat .v{font-size:20px; font-weight:800; color:var(--navy);}
+  .stat .k{font-size:11px; color:var(--muted); margin-top:2px; line-height:1.3;}
+  .stat.alert .v{color:var(--bad);}
+  .stat.good .v{color:var(--ok);}
+  .rule-box{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:16px;}
+  .rule-box summary{font-size:13px; font-weight:700; color:var(--navy); cursor:pointer;}
+  .rule-table{width:100%; border-collapse:collapse; margin-top:10px; font-size:12px;}
+  .rule-table td{padding:6px 8px; border-top:1px solid var(--line); vertical-align:top;}
+  .rule-table td:last-child{text-align:center; font-weight:800; width:34px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px;}
+  .card h2{margin:0 0 12px; font-size:15px; color:var(--navy);}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; color:var(--muted); font-weight:600;}
+  .field input{border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px; width:100%;}
+  .field input:focus{outline:2px solid var(--steel); outline-offset:1px;}
+  .checkfield{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:12px; color:var(--ink);}
+  .checkfield input{width:16px; height:16px;}
+  button.primary{background:var(--navy); color:#fff; border:none; border-radius:9px; padding:12px 16px; font-size:14px; font-weight:700; width:100%; cursor:pointer;}
+  button.primary:active{background:var(--navy-deep);}
+  button.ghost{background:transparent; border:1px solid var(--line); color:var(--navy); border-radius:8px; padding:7px 11px; font-size:12px; font-weight:700; cursor:pointer;}
+  button.ghost.success{color:var(--ok); border-color:#bfe3cd;}
+  button.ghost.danger{color:var(--bad); border-color:#f3cbc7;}
+  button.small-danger{background:var(--bad-bg); color:var(--bad); border:1px solid #f3cbc7; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer;}
+  .list-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .list-head h2{margin:0;}
+  .filter-tabs{display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;}
+  .filter-tabs button{border:1px solid var(--line); background:#fff; border-radius:20px; padding:6px 12px; font-size:12px; cursor:pointer; color:var(--muted); font-weight:600;}
+  .filter-tabs button.active{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .inv-item{border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px;}
+  .inv-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .inv-no{font-weight:800; font-size:14px;}
+  .inv-cust{font-size:12px; color:var(--muted); margin-top:2px;}
+  .tag-row{display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;}
+  .tag{font-size:10px; background:#eef1f5; color:var(--steel); padding:2px 7px; border-radius:20px; font-weight:700;}
+  .badge{font-size:10px; font-weight:800; padding:3px 8px; border-radius:20px; white-space:nowrap; text-transform:uppercase; letter-spacing:.03em;}
+  .badge.pending{background:#eef1f5; color:var(--steel);}
+  .badge.ontime{background:var(--ok-bg); color:var(--ok);}
+  .badge.late{background:var(--warn-bg); color:var(--warn);}
+  .badge.rejected{background:var(--bad-bg); color:var(--bad);}
+  .badge.report{background:var(--warn-bg); color:var(--warn);}
+  .badge.done{background:var(--ok-bg); color:var(--ok);}
+  .badge.overdue{background:var(--bad-bg); color:var(--bad);}
+  .inv-dates{display:flex; flex-wrap:wrap; gap:12px; margin-top:8px; font-size:11px; color:var(--muted);}
+  .inv-dates b{color:var(--ink); font-weight:600;}
+  .followup-log{margin-top:8px; font-size:11px; color:var(--muted); background:var(--paper); border-radius:6px; padding:8px 10px;}
+  .followup-log b{color:var(--ink);}
+  .followup-log .fu-title{font-weight:700; color:var(--ink); margin-bottom:4px; display:block;}
+  .followup-log ol{margin:0; padding-left:16px; max-height:120px; overflow-y:auto;}
+  .followup-log li{margin-bottom:2px;}
+  .inv-actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .inline-form{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; background:var(--paper); border-radius:8px; padding:10px;}
+  .inline-form .actions{grid-column:span 2; display:flex; gap:8px;}
+  .empty{text-align:center; padding:30px 10px; color:var(--muted); font-size:13px;}
+  .toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--navy-deep); color:#fff; padding:10px 18px; border-radius:30px; font-size:13px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:50;}
+  .toast.show{opacity:1;}
+  /* Login gate */
+  #loginGate{min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--navy-deep),var(--navy) 70%); padding:24px; text-align:center;}
+  #loginGate .lg-brand{color:#fff; opacity:.7; font-size:12px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px;}
+  #loginGate h1{color:#fff; font-size:22px; margin:0 0 6px;}
+  #loginGate p{color:#cdd8ea; font-size:13px; margin:0 0 26px; max-width:340px;}
+  .role-btn{display:block; width:100%; max-width:320px; margin:0 auto 12px; background:#fff; border:none; border-radius:12px; padding:16px 18px; text-align:left; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.15);}
+  .role-btn .rt{font-size:14px; font-weight:800; color:var(--navy);}
+  .role-btn .rs{font-size:12px; color:var(--muted); margin-top:2px;}
+  .login-box{width:100%; max-width:320px; margin:0 auto;}
+  .login-box input{width:100%; border:none; border-radius:10px; padding:13px 14px; font-size:14px; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,.1);}
+  .role-btn.login-submit{padding:13px 18px; text-align:center;}
+  .login-error{color:#ffb4b0; font-size:12px; margin-top:4px; min-height:16px;}
+  .login-hint{color:#9fb3d1; font-size:11px; margin-top:16px; line-height:1.6;}
+  /* Role indicator + switch */
+  .role-indicator{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:#cdd8ea; margin-top:10px;}
+  .role-indicator button{background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:20px; padding:4px 12px; font-size:11px; cursor:pointer;}
+  /* Quarterly trend */
+  .q-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .q-label{width:110px; font-size:12px; color:var(--muted); flex-shrink:0;}
+  .q-bar-track{flex:1; background:#eef1f5; border-radius:20px; height:20px; position:relative; overflow:hidden;}
+  .q-bar-fill{height:100%; border-radius:20px; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; font-size:10px; font-weight:800; color:#fff;}
+  .q-bar-fill.r4{background:var(--ok);}
+  .q-bar-fill.r3{background:#3d8a5c;}
+  .q-bar-fill.r2{background:var(--warn);}
+  .q-bar-fill.r1{background:var(--bad);}
+  .q-bar-fill.rnone{background:#c7cdd6;}
+  .q-meta{width:60px; text-align:right; font-size:11px; color:var(--muted); flex-shrink:0;}
+
+</style>
+</head>
+<body>
+
+<div id="loginGate">
+  <div class="lg-brand">MACFIL SDN BHD</div>
+  <h1>Invoice Portal Submission Tracker</h1>
+  <p>Log in to continue.</p>
+  <div class="login-box">
+    <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') attemptLogin()">
+    <button class="role-btn login-submit" onclick="attemptLogin()">
+      <div class="rt" style="text-align:center;">Log In</div>
+    </button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<div id="appContent" style="display:none;">
+<header>
+  <div class="role-indicator" style="position:absolute; top:16px; left:18px; right:70px;">
+    <span id="roleLabel"></span>
+    <button onclick="logout()">Switch Role</button>
+  </div>
+  <div class="rating-chip"><div class="num" id="ratingNum">–</div><div class="lbl">Rating</div></div>
+  <div class="brand">MACFIL SDN BHD · Operations Executive KPI</div>
+  <h1>Invoice Submission to Customer Portal</h1>
+  <p>Only invoices that go through a customer portal are logged here. Submit on the invoice date, follow up until the portal shows Success. If the customer requires a report, it must be submitted and approved before the portal confirms. Weight: 20% · Accumulative.</p>
+</header>
+
+<main>
+
+  <div class="banner">📌 Only log invoices that require portal submission — not every customer needs this.</div>
+
+  <div class="userbar" id="ocUserbar">
+    <label>Logged in as</label>
+    <span id="ownerDisplay" style="font-weight:700; color:var(--navy);">—</span>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat"><div class="v" id="statTotal">0</div><div class="k">Invoices logged</div></div>
+    <div class="stat good"><div class="v" id="statOnTime">0%</div><div class="k">Submitted same day as invoice date</div></div>
+    <div class="stat" id="statOutstandingCard"><div class="v" id="statOutstanding">0</div><div class="k">Outstanding (rejected / awaiting approval)</div></div>
+    <div class="stat good"><div class="v" id="statDone">0</div><div class="k">Portal confirmed Success</div></div>
+  </div>
+
+  <div class="card" id="mgrTrendCard" style="display:none;">
+    <h2 id="mgrTrendTitle">Quarterly Rating Trend</h2>
+    <div id="mgrTrendBody"></div>
+  </div>
+
+  <div class="card" id="mgrUsersCard" style="display:none;">
+    <h2>User Management</h2>
+    <div id="usersList"></div>
+    <div class="field-row" style="margin-top:12px;">
+      <div class="field"><label>Username</label><input type="text" id="newUsername" placeholder="e.g. wardah"></div>
+      <div class="field"><label>Display Name</label><input type="text" id="newDisplayName" placeholder="e.g. Wardah"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Password</label><input type="text" id="newUserPassword" placeholder="Set a password"></div>
+      <div class="field">
+        <label>Role</label>
+        <select id="newUserRole" style="border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px;">
+          <option value="OC">Operations Executive</option>
+          <option value="MGR">Manager</option>
+        </select>
+      </div>
+    </div>
+    <button class="primary" onclick="handleAddUser()">+ Add User</button>
+  </div>
+
+  <details class="rule-box">
+    <summary>Rating rubric (tap to view)</summary>
+    <table class="rule-table">
+      <tr><td>100% submitted &amp; followed up; 0 rejections outstanding</td><td>4</td></tr>
+      <tr><td>95–99% submitted on time; all rejections settled within 2 days</td><td>3</td></tr>
+      <tr><td>90–94% submitted on time; rejections settled within 2 days</td><td>2</td></tr>
+      <tr><td>&lt;90% submitted on time, or rejections took &gt;2 days to settle</td><td>1</td></tr>
+    </table>
+  </details>
+
+  <div class="card" id="ocAddCard">
+    <h2>+ Log new invoice</h2>
+    <div class="field-row">
+      <div class="field"><label>Invoice No.</label><input type="text" id="newInvNo" placeholder="INV-2026-0001"></div>
+      <div class="field"><label>Customer</label><input type="text" id="newCustomer" placeholder="Customer name"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Invoice Date (= must submit same day)</label><input type="date" id="newInvoiceDate"></div>
+      <div class="field"></div>
+    </div>
+    <div class="checkfield">
+      <input type="checkbox" id="newReportRequired">
+      <label for="newReportRequired">This customer requires a Report before portal shows Success</label>
+    </div>
+    <button class="primary" onclick="addInvoice()">Add Invoice</button>
+  </div>
+
+  <div class="list-head"><h2>Invoice Log</h2></div>
+  <input type="text" id="searchBox" placeholder="🔍 Search invoice no. or customer (any status)..." style="width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:13px; margin-bottom:10px;">
+  <div class="filter-tabs" id="filterTabs">
+    <button data-f="all" class="active">All</button>
+    <button data-f="open">In Progress</button>
+    <button data-f="rejected">Rejected / Outstanding</button>
+    <button data-f="done">Portal Success</button>
+  </div>
+
+  <div id="invList"></div>
+  <div class="empty" id="emptyState" style="display:none;">No invoices logged yet. Add one above to get started.</div>
+
+</main>
+
+</div><!-- /appContent -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ CONFIG — same Supabase project as macfil-ops ============ */
+const SUPABASE_URL = "https://yabnprhyjkbqwylrvcjo.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_rPH8vzc5szNdIwztYlodWg_qVdukz_e"; // same key used in macfil-ops
+const TABLE = "invoice_submissions";
+const USERS_TABLE = "invoice_tracker_users";
+/* ======================================================================= */
+
+let supabase = null;
+try { supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+catch(e) { console.error("Supabase init failed", e); }
+
+let invoices = [];
+let currentFilter = "all";
+let searchTerm = "";
+let currentRole = null;
+let currentUser = null;
+let users = [];
+
+function loginAs(role){
+  currentRole = role;
+  document.getElementById('loginGate').style.display = 'none';
+  document.getElementById('appContent').style.display = 'block';
+  document.getElementById('ocUserbar').style.display = role === 'OC' ? 'flex' : 'none';
+  document.getElementById('ocAddCard').style.display = role === 'OC' ? 'block' : 'none';
+  document.getElementById('mgrTrendCard').style.display = role === 'MGR' ? 'block' : 'none';
+  document.getElementById('mgrUsersCard').style.display = role === 'MGR' ? 'block' : 'none';
+  loadInvoices();
+}
+function logout(){
+  currentRole = null; currentUser = null;
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('appContent').style.display = 'none';
+  document.getElementById('loginGate').style.display = 'flex';
+}
+
+async function attemptLogin(){
+  const u = document.getElementById('loginUsername').value.trim();
+  const p = document.getElementById('loginPassword').value;
+  const result = await loadUsers();
+  if(!result || !result.ok){
+    document.getElementById('loginError').textContent = '⚠️ Could not connect to the database. Check your internet connection, or the Supabase key may be wrong.';
+    return;
+  }
+  if(!users.length){
+    document.getElementById('loginError').textContent = '⚠️ Connected, but no user accounts found in the database.';
+    return;
+  }
+  const user = users.find(x => x.username.toLowerCase() === u.toLowerCase() && x.active);
+  if(!user || user.password !== p){
+    document.getElementById('loginError').textContent = 'Invalid username or password.';
+    return;
+  }
+  currentUser = user;
+  document.getElementById('roleLabel').textContent = (user.role==='OC' ? '👷 ' : '🧑‍💼 ') + user.display_name + (user.role==='OC' ? ' — Operations Executive' : ' — Manager');
+  document.getElementById('ownerDisplay').textContent = user.display_name;
+  loginAs(user.role);
+}
+
+/* Financial-year quarter helpers (FY Apr–Mar) */
+function getCurrentFYQuarters(){
+  const now = new Date(todayISO_MY()+'T00:00:00');
+  const month = now.getMonth()+1, year = now.getFullYear();
+  const fyStartYear = month>=4 ? year : year-1;
+  const quarters = [
+    {key:'Q1', label:'Q1 · Apr–Jun', start:`${fyStartYear}-04-01`, end:`${fyStartYear}-06-30`},
+    {key:'Q2', label:'Q2 · Jul–Sep', start:`${fyStartYear}-07-01`, end:`${fyStartYear}-09-30`},
+    {key:'Q3', label:'Q3 · Oct–Dec', start:`${fyStartYear}-10-01`, end:`${fyStartYear}-12-31`},
+    {key:'Q4', label:'Q4 · Jan–Mar', start:`${fyStartYear+1}-01-01`, end:`${fyStartYear+1}-03-31`},
+  ];
+  return { fyLabel:`FY${String(fyStartYear).slice(2)}/${String(fyStartYear+1).slice(2)}`, quarters };
+}
+
+function renderQuarterlyTrend(){
+  const { fyLabel, quarters } = getCurrentFYQuarters();
+  document.getElementById('mgrTrendTitle').textContent = `Quarterly Rating Trend — ${fyLabel}`;
+  const body = document.getElementById('mgrTrendBody');
+  body.innerHTML = quarters.map(q => {
+    const inQ = invoices.filter(i => i.invoice_date >= q.start && i.invoice_date <= q.end);
+    const s = computeSummary(inQ);
+    const rating = s.rating;
+    const pct = rating ? (rating/4*100) : 0;
+    const cls = rating===4?'r4':rating===3?'r3':rating===2?'r2':rating===1?'r1':'rnone';
+    return `<div class="q-row">
+      <div class="q-label">${q.label}</div>
+      <div class="q-bar-track"><div class="q-bar-fill ${cls}" style="width:${Math.max(pct,rating?14:0)}%;">${rating ?? ''}</div></div>
+      <div class="q-meta">${inQ.length} inv.</div>
+    </div>`;
+  }).join('');
+}
+
+
+/* ---------- user list rendering ---------- */
+function renderUsersList(){
+  const el = document.getElementById('usersList');
+  if(!el) return;
+  if(!users.length){ el.innerHTML = '<div style="font-size:12px;color:var(--muted);">No users yet.</div>'; return; }
+  el.innerHTML = users.map(u => `
+    <div class="inv-item" style="padding:10px 12px;">
+      <div class="inv-top">
+        <div>
+          <div class="inv-no">${escapeHtml(u.display_name || u.username)}</div>
+          <div class="inv-cust">@${escapeHtml(u.username)} · ${u.role === 'OC' ? 'Operations Executive' : 'Manager'}</div>
+        </div>
+        <span class="badge ${u.active ? 'ontime' : 'overdue'}">${u.active ? 'Active' : 'Disabled'}</span>
+      </div>
+      <div class="inline-form" id="pw-form-${u.username}" style="display:none;">
+        <div style="grid-column:span 2;"><input type="text" id="pw-input-${u.username}" placeholder="New password" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;"></div>
+        <div class="actions">
+          <button class="small-danger" onclick="handleResetPassword('${u.username}')">Save Password</button>
+          <button class="ghost" onclick="document.getElementById('pw-form-${u.username}').style.display='none'">Cancel</button>
+        </div>
+      </div>
+      <div class="inv-actions">
+        <button class="ghost" onclick="document.getElementById('pw-form-${u.username}').style.display='flex'">Reset Password</button>
+        <button class="ghost ${u.active ? 'danger' : 'success'}" onclick="toggleUserActive('${u.username}', ${!u.active})">${u.active ? 'Disable' : 'Enable'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function handleAddUser(){
+  const username = document.getElementById('newUsername').value.trim();
+  const displayName = document.getElementById('newDisplayName').value.trim();
+  const password = document.getElementById('newUserPassword').value;
+  const role = document.getElementById('newUserRole').value;
+  if(!username || !password || !displayName){ toast('Please fill username, display name and password'); return; }
+  await addUser(username, password, role, displayName);
+  document.getElementById('newUsername').value='';
+  document.getElementById('newDisplayName').value='';
+  document.getElementById('newUserPassword').value='';
+}
+
+async function handleResetPassword(username){
+  const val = document.getElementById('pw-input-' + username).value;
+  if(!val){ toast('Enter a new password'); return; }
+  await resetUserPassword(username, val);
+  document.getElementById('pw-form-' + username).style.display = 'none';
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* Malaysia time helpers */
+function todayISO_MY(){
+  return new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Kuala_Lumpur'}); // YYYY-MM-DD
+}
+function nowMY_display(){
+  return new Date().toLocaleString('en-MY', {timeZone:'Asia/Kuala_Lumpur', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true}) + ' MYT';
+}
+function nowMY_iso(){
+  return new Date().toISOString();
+}
+function daysBetween(a,b){ if(!a||!b) return null; return Math.round((new Date(b)-new Date(a))/(1000*60*60*24)); }
+
+/* ---------- data load ---------- */
+async function loadInvoices(){
+  if(!supabase) return;
+  const { data, error } = await supabase.from(TABLE).select('*').order('created_at', {ascending:false});
+  if(error){ console.error(error); toast('Failed to load data'); return; }
+  invoices = (data || []).map(r => ({...r, followups: r.followups || []}));
+  render();
+}
+
+async function saveInvoice(record){
+  if(!supabase){ toast('Supabase not connected'); return null; }
+  const { data, error } = await supabase.from(TABLE).insert([record]).select();
+  if(error){ console.error(error); toast('Failed to save'); return null; }
+  return data[0];
+}
+async function updateInvoice(id, fields){
+  if(!supabase){ toast('Supabase not connected'); return; }
+  const { error } = await supabase.from(TABLE).update(fields).eq('id', id);
+  if(error){ console.error(error); toast('Update failed'); return; }
+  loadInvoices();
+}
+
+/* ---------- user management ---------- */
+async function loadUsers(){
+  if(!supabase) return { ok:false, reason:'no-client' };
+  try{
+    const { data, error } = await supabase.from(USERS_TABLE).select('*').order('created_at', {ascending:true});
+    if(error){ console.error(error); return { ok:false, reason: error.message || 'query-error' }; }
+    users = data || [];
+    return { ok:true };
+  } catch(e){
+    console.error(e);
+    return { ok:false, reason: 'network' };
+  }
+}
+async function addUser(username, password, role, displayName){
+  if(!supabase){ toast('Supabase not connected'); return; }
+  const { error } = await supabase.from(USERS_TABLE).insert([{
+    username, password, role, display_name: displayName, active: true, created_at: nowMY_iso()
+  }]);
+  if(error){ console.error(error); toast('Failed to add user'); return; }
+  toast('User added'); await loadUsers(); render();
+}
+async function resetUserPassword(username, newPassword){
+  if(!supabase){ toast('Supabase not connected'); return; }
+  const { error } = await supabase.from(USERS_TABLE).update({ password: newPassword }).eq('username', username);
+  if(error){ console.error(error); toast('Failed to update password'); return; }
+  toast('Password updated'); await loadUsers(); render();
+}
+async function toggleUserActive(username, active){
+  if(!supabase) return;
+  const { error } = await supabase.from(USERS_TABLE).update({ active }).eq('username', username);
+  if(error){ console.error(error); toast('Failed to update user'); return; }
+  await loadUsers(); render();
+}
+
+async function addInvoice(){
+  const invNo = document.getElementById('newInvNo').value.trim();
+  const customer = document.getElementById('newCustomer').value.trim();
+  const invoiceDate = document.getElementById('newInvoiceDate').value;
+  const reportRequired = document.getElementById('newReportRequired').checked;
+  const owner = currentUser ? currentUser.display_name : 'Unknown';
+
+  if(!invNo || !invoiceDate){ toast('Please fill Invoice No. and Invoice Date'); return; }
+
+  const record = {
+    invoice_no: invNo, customer, invoice_date: invoiceDate,
+    submitted_date: null, followups: [],
+    report_required: reportRequired, report_submitted_date: null, report_approved_date: null,
+    rejection_history: [],
+    portal_success_date: null, owner, created_at: nowMY_iso()
+  };
+  const saved = await saveInvoice(record);
+  if(!saved) return;
+
+  document.getElementById('newInvNo').value=''; document.getElementById('newCustomer').value='';
+  document.getElementById('newInvoiceDate').value = todayISO_MY();
+  document.getElementById('newReportRequired').checked = false;
+  toast('Invoice added'); loadInvoices();
+}
+
+async function markSubmitted(id){ await updateInvoice(id, { submitted_date: todayISO_MY() }); toast('Marked as submitted to portal'); }
+
+async function logFollowup(id){
+  const inv = invoices.find(i=>i.id===id); if(!inv) return;
+  const followups = [...(inv.followups||[]), { at: nowMY_iso(), display: nowMY_display() }];
+  await updateInvoice(id, { followups }); toast('Follow-up logged: ' + nowMY_display());
+}
+
+function hasOpenRejection(inv){
+  const h = inv.rejection_history||[];
+  return h.length>0 && !h[h.length-1].resubmitted_at;
+}
+function openRejectForm(id){ const el=document.getElementById('reject-form-'+id); if(el) el.style.display='flex'; }
+function cancelRejectForm(id){ const el=document.getElementById('reject-form-'+id); if(el) el.style.display='none'; }
+
+async function confirmRejection(id){
+  const inv = invoices.find(i=>i.id===id); if(!inv) return;
+  const reasonEl = document.getElementById('reject-reason-'+id);
+  const reason = reasonEl ? reasonEl.value.trim() : '';
+  const history = [...(inv.rejection_history||[]), { rejected_at: todayISO_MY(), reason: reason || '(no reason noted)', resubmitted_at: null }];
+  await updateInvoice(id, { rejection_history: history });
+  toast('Marked as rejected — find out why & rectify within 2 days');
+}
+
+async function markResubmitted(id){
+  const inv = invoices.find(i=>i.id===id); if(!inv) return;
+  const h = [...(inv.rejection_history||[])];
+  if(h.length && !h[h.length-1].resubmitted_at){ h[h.length-1] = {...h[h.length-1], resubmitted_at: todayISO_MY()}; }
+  await updateInvoice(id, { rejection_history: h });
+  toast('Resubmitted — keep following up until Portal shows Success');
+}
+async function markReportSubmitted(id){ await updateInvoice(id, { report_submitted_date: todayISO_MY() }); toast('Report submitted'); }
+async function markReportApproved(id){ await updateInvoice(id, { report_approved_date: todayISO_MY() }); toast('Customer approved report'); }
+async function markPortalSuccess(id){ await updateInvoice(id, { portal_success_date: todayISO_MY() }); toast('🎉 Portal confirmed Success'); }
+
+function confirmInline(id){ const el = document.getElementById('del-confirm-'+id); if(el) el.style.display='flex'; }
+async function reallyDelete(id){
+  if(!supabase) return;
+  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  if(error){ toast('Delete failed'); return; }
+  toast('Removed'); loadInvoices();
+}
+
+/* ---------- derived status ---------- */
+function computeInvStatus(inv){
+  const today = todayISO_MY();
+  if(inv.portal_success_date) return {label:'Portal Success', cls:'done'};
+  if(hasOpenRejection(inv)){
+    const h = inv.rejection_history;
+    const daysOpen = daysBetween(h[h.length-1].rejected_at, today);
+    return daysOpen > 2 ? {label:'Rejected · Overdue', cls:'overdue'} : {label:'Rejected · Outstanding', cls:'rejected'};
+  }
+  if(inv.report_required && inv.report_submitted_date && !inv.report_approved_date) return {label:'Awaiting Report Approval', cls:'report'};
+  if(inv.report_required && inv.submitted_date && !inv.report_submitted_date) return {label:'Report Needed', cls:'report'};
+  if(inv.submitted_date){
+    const late = inv.submitted_date !== inv.invoice_date;
+    return {label: late ? 'Submitted Late · Follow up' : 'Submitted · Follow up', cls: late?'late':'ontime'};
+  }
+  return inv.invoice_date < today ? {label:'Overdue — Not Submitted', cls:'overdue'} : {label:'Pending Submission', cls:'pending'};
+}
+
+/* ---------- summary + rating ---------- */
+function computeSummary(list){
+  list = list || invoices;
+  const submitted = list.filter(i => i.submitted_date);
+  const onTime = submitted.filter(i => i.submitted_date === i.invoice_date);
+  const allRejectionEntries = list.flatMap(i => i.rejection_history||[]);
+  const outstandingRejectionEntries = allRejectionEntries.filter(e => !e.resubmitted_at);
+  const settledRejectionEntries = allRejectionEntries.filter(e => e.resubmitted_at);
+  const settledWithin2Entries = settledRejectionEntries.filter(e => daysBetween(e.rejected_at, e.resubmitted_at) <= 2);
+  const outstandingReports = list.filter(i => i.report_required && i.report_submitted_date && !i.report_approved_date);
+
+  const total = list.length;
+  const done = list.filter(i => i.portal_success_date).length;
+  const onTimeRate = submitted.length ? (onTime.length / submitted.length) : 0;
+  const rejSettledRate = settledRejectionEntries.length + outstandingRejectionEntries.length ? (settledWithin2Entries.length / (settledRejectionEntries.length)) : 1;
+  const outstanding = outstandingRejectionEntries.length + outstandingReports.length;
+
+  let rating = null;
+  if(total > 0){
+    if(onTimeRate === 1 && outstanding === 0) rating = 4;
+    else if(onTimeRate >= 0.95 && outstanding === 0 && rejSettledRate === 1) rating = 3;
+    else if(onTimeRate >= 0.90 && rejSettledRate === 1) rating = 2;
+    else rating = 1;
+  }
+  return { total, onTimeRate, outstanding, done, rating };
+}
+
+function render(){
+  const s = computeSummary();
+  if(currentRole === 'MGR'){ renderQuarterlyTrend(); renderUsersList(); }
+  document.getElementById('statTotal').textContent = s.total;
+  document.getElementById('statOnTime').textContent = s.total ? Math.round(s.onTimeRate*100)+'%' : '0%';
+  document.getElementById('statOutstanding').textContent = s.outstanding;
+  document.getElementById('statOutstandingCard').className = 'stat' + (s.outstanding>0 ? ' alert':' good');
+  document.getElementById('statDone').textContent = s.done;
+  document.getElementById('ratingNum').textContent = s.rating ?? '–';
+
+  const list = document.getElementById('invList');
+  let filtered;
+  if(searchTerm){
+    const term = searchTerm.toLowerCase();
+    filtered = invoices.filter(i => (i.invoice_no||'').toLowerCase().includes(term) || (i.customer||'').toLowerCase().includes(term));
+  } else {
+    filtered = invoices;
+    if(currentFilter === 'open') filtered = invoices.filter(i => !i.portal_success_date && !hasOpenRejection(i));
+    if(currentFilter === 'rejected') filtered = invoices.filter(i => hasOpenRejection(i));
+    if(currentFilter === 'done') filtered = invoices.filter(i => i.portal_success_date);
+  }
+
+  list.innerHTML = '';
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+
+  filtered.forEach(inv => {
+    const st = computeInvStatus(inv);
+    const fcount = (inv.followups||[]).length;
+    const lastFollowup = fcount ? inv.followups[fcount-1].display : null;
+    const div = document.createElement('div');
+    div.className = 'inv-item';
+    div.innerHTML = `
+      <div class="inv-top">
+        <div>
+          <div class="inv-no">${escapeHtml(inv.invoice_no)}</div>
+          <div class="inv-cust">${escapeHtml(inv.customer || '—')} · logged by ${escapeHtml(inv.owner||'—')}</div>
+          <div class="tag-row">${inv.report_required ? '<span class="tag">Report required</span>' : ''}${fcount ? `<span class="tag">${fcount} follow-up${fcount>1?'s':''}</span>` : ''}</div>
+        </div>
+        <span class="badge ${st.cls}">${st.label}</span>
+      </div>
+      <div class="inv-dates">
+        <span>Invoice Date: <b>${inv.invoice_date||'—'}</b></span>
+        <span>Submitted: <b>${inv.submitted_date||'—'}</b></span>
+        ${(inv.rejection_history||[]).length ? `<span>Rejections: <b>${inv.rejection_history.length}</b> (${hasOpenRejection(inv) ? 'latest still open' : 'all resolved'})</span>` : ''}
+        ${inv.report_submitted_date ? `<span>Report Sent: <b>${inv.report_submitted_date}</b></span>` : ''}
+        ${inv.report_approved_date ? `<span>Report Approved: <b>${inv.report_approved_date}</b></span>` : ''}
+        ${inv.portal_success_date ? `<span>Portal Success: <b>${inv.portal_success_date}</b></span>` : ''}
+      </div>
+      ${fcount ? `<div class="followup-log"><span class="fu-title">Follow-ups (${fcount}):</span><ol>${[...inv.followups].reverse().map(f=>`<li>${f.display}</li>`).join('')}</ol></div>` : ''}
+      ${(inv.rejection_history||[]).length ? `<div class="followup-log">${inv.rejection_history.map((r,idx)=>`Rejection ${idx+1}: <b>${r.rejected_at}</b> — \"${escapeHtml(r.reason)}\"${r.resubmitted_at ? ` → resubmitted <b>${r.resubmitted_at}</b>` : ' → <span style="color:var(--bad);font-weight:700;">still open, follow up needed</span>'}`).join('<br>')}</div>` : ''}
+      ${currentRole === 'OC' ? `
+      <div class="inline-form" id="reject-form-${inv.id}" style="display:none;">
+        <div style="grid-column:span 2; font-size:12px; color:var(--muted);">Why did the portal reject this invoice? (helps with following up with the customer)</div>
+        <div style="grid-column:span 2;"><input type="text" id="reject-reason-${inv.id}" placeholder="e.g. wrong PO number, missing PDF, amount mismatch..." style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;"></div>
+        <div class="actions">
+          <button class="small-danger" onclick="confirmRejection('${inv.id}'); cancelRejectForm('${inv.id}');">Confirm Rejection</button>
+          <button class="ghost" onclick="cancelRejectForm('${inv.id}')">Cancel</button>
+        </div>
+      </div>
+      <div class="inv-actions">
+        ${!inv.submitted_date ? `<button class="ghost" onclick="markSubmitted('${inv.id}')">Mark Submitted</button>` : ''}
+        ${inv.submitted_date && !inv.portal_success_date ? `<button class="ghost" onclick="logFollowup('${inv.id}')">+ Log Follow-up</button>` : ''}
+        ${inv.submitted_date && !hasOpenRejection(inv) && !inv.portal_success_date ? `<button class="ghost danger" onclick="openRejectForm('${inv.id}')">Mark Rejected</button>` : ''}
+        ${hasOpenRejection(inv) ? `<button class="ghost" onclick="markResubmitted('${inv.id}')">Mark Resubmitted</button>` : ''}
+        ${inv.report_required && inv.submitted_date && !inv.report_submitted_date ? `<button class="ghost" onclick="markReportSubmitted('${inv.id}')">Mark Report Submitted</button>` : ''}
+        ${inv.report_required && inv.report_submitted_date && !inv.report_approved_date ? `<button class="ghost success" onclick="markReportApproved('${inv.id}')">Mark Customer Approved</button>` : ''}
+        ${inv.submitted_date && !inv.portal_success_date && !hasOpenRejection(inv) && (!inv.report_required || inv.report_approved_date) ? `<button class="ghost success" onclick="markPortalSuccess('${inv.id}')">✅ Mark Portal Success</button>` : ''}
+        <button class="small-danger" onclick="confirmInline('${inv.id}')">Delete</button>
+      </div>
+      <div class="inline-form" id="del-confirm-${inv.id}" style="display:none;">
+        <div style="grid-column:span 2; font-size:12px; color:var(--muted);">Delete this invoice record? This cannot be undone.</div>
+        <div class="actions">
+          <button class="small-danger" onclick="reallyDelete('${inv.id}')">Yes, delete</button>
+          <button class="ghost" onclick="document.getElementById('del-confirm-${inv.id}').style.display='none'">Cancel</button>
+        </div>
+      </div>
+      ` : ''}
+    `;
+    list.appendChild(div);
+  });
+}
+
+function escapeHtml(str){ if(!str) return ''; return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+document.getElementById('filterTabs').addEventListener('click', (e)=>{
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#filterTabs button').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active'); currentFilter = e.target.dataset.f; render();
+});
+document.getElementById('searchBox').addEventListener('input', (e)=>{
+  searchTerm = e.target.value.trim();
+  render();
+});
+
+/* init */
+document.getElementById('newInvoiceDate').value = todayISO_MY();
+loadInvoices();
+
+if(supabase){
+  supabase.channel('invoice_submissions_changes')
+    .on('postgres_changes', {event:'*', schema:'public', table: TABLE}, () => loadInvoices())
+    .subscribe();
+}
+</script>
+</body>
+</html>
