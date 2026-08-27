@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
 <title>Invoice Portal Submission Tracker | MACFIL</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.0/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --navy:#132a4e; --navy-deep:#0b1c36; --steel:#3d5a80;
@@ -238,8 +238,10 @@ const USERS_TABLE = "invoice_tracker_users";
 /* ======================================================================= */
 
 let supabase = null;
-try { supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
-catch(e) { console.error("Supabase init failed", e); }
+try {
+  if(!window.supabase){ throw new Error('Supabase library did not load (blocked network or CDN down)'); }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) { console.error("Supabase init failed", e); }
 
 let invoices = [];
 let currentFilter = "all";
@@ -272,7 +274,10 @@ async function attemptLogin(){
   const p = document.getElementById('loginPassword').value;
   const result = await loadUsers();
   if(!result || !result.ok){
-    document.getElementById('loginError').textContent = '⚠️ Could not connect to the database. Check your internet connection, or the Supabase key may be wrong.';
+    const msg = !window.supabase
+      ? '⚠️ The Supabase library failed to load. Your network/firewall may be blocking cdn.jsdelivr.net — try a different WiFi/network or ask IT to allow it.'
+      : '⚠️ Could not connect to the database. Check your internet connection, or the Supabase key may be wrong.';
+    document.getElementById('loginError').textContent = msg;
     return;
   }
   if(!users.length){
