@@ -406,17 +406,24 @@ let pendingNotifications = [];
 async function loadDB(){
   try {
     showSyncStatus('loading');
+    console.log('Attempting Supabase connection...');
+    console.log('URL:', SUPABASE_URL);
+    console.log('Key starts with:', SUPABASE_KEY.substring(0,20));
     const {data, error} = await _sb.from('orders').select('id,data');
+    console.log('Response - data:', data ? data.length+' rows' : 'null', 'error:', error);
     if(error){
-      console.error('Supabase error:',JSON.stringify(error));
-      throw new Error(error.message||JSON.stringify(error));
+      console.error('Supabase error details:', error);
+      const msg = error.message||error.hint||error.details||JSON.stringify(error);
+      showToast('⚠️ '+msg);
+      throw new Error(msg);
     }
     db.orders = (data||[]).map(r=>({id:r.id,...r.data}));
+    console.log('Loaded', db.orders.length, 'orders successfully');
     showSyncStatus('ok');
   } catch(e) {
-    console.error('Load error:',e.message||e);
+    console.error('Load error full:', e);
     showSyncStatus('error');
-    showToast('⚠️ DB Error: '+( e.message||'Check console'));
+    showToast('⚠️ '+(e.message||'Connection failed'));
   }
 }
 
@@ -728,7 +735,7 @@ async function doLogin(username, password){
 
   // Load data in background with timeout
   try {
-    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000));
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('Connection timeout - please check internet')),15000));
     await Promise.race([loadDB(), timeout]);
     subscribeRealtime();
     startAutoPing();
