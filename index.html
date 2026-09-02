@@ -353,7 +353,7 @@ tr:hover td{background:var(--grey-50)}
       <div class="topbar-title">Operations Tracker</div>
     </div>
     <div class="topbar-user">
-      <span id="sync-status" style="font-size:11px;color:#94a3b8;"></span>
+      <span id="sync-status" style="font-size:10px;color:#94a3b8;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block"></span>
       <div class="user-chip" id="user-chip"></div>
       <button class="btn-logout" onclick="logout()">Exit</button>
     </div>
@@ -390,7 +390,7 @@ tr:hover td{background:var(--grey-50)}
 // SUPABASE SETUP
 // ─────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://yabnprhyjkbqwylrvcjo.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_rPH8vzc5szNdIwztYlodWg_qVdukz_e';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhYm5wcmh5amticXd5bHJ2Y2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3ODYwMjAsImV4cCI6MjEwMDM2MjAyMH0.wi8vJ_ffzYJ4Gu8RzXIvpheum3l27ybp1gsk5CcwlkY';
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─────────────────────────────────────────────────────────
@@ -436,17 +436,29 @@ async function saveDB(changedOrder){
 
 async function deleteFromDB(id){
   try {
-    await _sb.from('orders').delete().eq('id',id);
+    const {error}=await _sb.from('orders').delete().eq('id',id);
+    if(error) throw new Error(error.message);
     showSyncStatus('ok');
   } catch(e) {
-    console.error('Delete error:',e);
+    console.error('Delete error:',e.message||e);
+    showSyncStatus('error');
   }
 }
 
 function showSyncStatus(s){
   const el=document.getElementById('sync-status');
   if(!el) return;
-  const map={loading:'⏳ Loading...',saving:'💾 Saving...',ok:'✅ Synced',error:'⚠️ Sync error'};
+  const now=new Date().toLocaleString('en-MY',{
+    timeZone:'Asia/Kuala_Lumpur',
+    day:'2-digit',month:'short',
+    hour:'2-digit',minute:'2-digit',hour12:true
+  });
+  const map={
+    loading:'⏳ Loading...',
+    saving:'💾 Saving...',
+    ok:'✅ Synced · '+now,
+    error:'⚠️ Sync error · '+now
+  };
   const col={loading:'#94a3b8',saving:'#2563eb',ok:'#15803d',error:'#dc2626'};
   el.textContent=map[s]||'';
   el.style.color=col[s]||'#94a3b8';
@@ -904,14 +916,88 @@ function renderDashboard(){
       return '<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:14px 16px;margin-bottom:14px;text-align:center;font-size:12px;color:var(--grey-400)">📋 No activity recorded today yet</div>';
     }
     const row=(o,detail,color)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:white;border:1px solid var(--grey-100);border-radius:7px;margin-bottom:4px;gap:8px"><div><span style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:12px;color:var(--navy)">'+esc(o.soNum)+'</span> <span style="font-size:12px;color:var(--grey-600)">'+esc(o.customer)+'</span></div><div style="font-size:11px;color:'+color+';font-weight:600;white-space:nowrap">'+detail+'</div></div>';
-    const sec=(title,icon,rows,color)=>rows.length===0?'':'<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+icon+' '+title+' ('+rows.length+')</div>'+rows+'</div>';
+    // sec takes array of orders, not joined string
+    const sec=(title,icon,orders,color,detailFn)=>orders.length===0?'':'<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+icon+' '+title+' ('+orders.length+')</div>'+orders.map(o=>row(o,detailFn(o),color)).join('')+'</div>';
     return '<div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
       +'<div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:12px">📅 Today — '+todayDate.split('-').reverse().join('/')+'</div>'
-      +sec('SO Created / Received','📋',soToday.map(o=>row(o,o.ocReceivedDate===todayDate?'OC Received':'SO Created','var(--blue)')).join(''),'var(--blue)')
-      +sec('Picking Completed','📦',pickToday.map(o=>row(o,'SK: '+(o.storeKeepers&&o.storeKeepers.length?esc(o.storeKeepers[0]):'—'),'var(--teal)')).join(''),'var(--teal)')
-      +sec('Dispatched','🚚',dispToday.map(o=>row(o,'Driver: '+esc(o.driverName||'—')+(o.dispatchedTime?' · '+o.dispatchedTime:''),'var(--amber)')).join(''),'var(--amber)')
-      +sec('Delivered','✅',delivToday.map(o=>row(o,o.deliveredTime||'Delivered','var(--green)')).join(''),'var(--green)')
+      +sec('SO Created / Received','📋',soToday,'var(--blue)',o=>o.ocReceivedDate===todayDate?'OC Received':'SO Created')
+      +sec('Picking Completed','📦',pickToday,'var(--teal)',o=>'SK: '+(o.storeKeepers&&o.storeKeepers.length?esc(o.storeKeepers[0]):'—'))
+      +sec('Dispatched','🚚',dispToday,'var(--amber)',o=>'Driver: '+esc(o.driverName||'—')+(o.dispatchedTime?' · '+o.dispatchedTime:''))
+      +sec('Delivered','✅',delivToday,'var(--green)',o=>o.deliveredTime||'Delivered')
       +'</div>';
+  })()}
+
+  <!-- Delivery Calendar -->
+  ${(()=>{
+    const todayStr=myDate();
+    const todayD=new Date(todayStr);
+    const curYear=todayD.getFullYear();
+    const curMonth=todayD.getMonth();
+
+    // Build 2 months: current + next
+    const months=[];
+    for(let m=0;m<3;m++){
+      const yr=curMonth+m>11?curYear+1:curYear;
+      const mo=(curMonth+m)%12;
+      const firstDay=new Date(yr,mo,1).getDay(); // 0=Sun
+      const daysInMonth=new Date(yr,mo+1,0).getDate();
+      const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mo];
+      months.push({yr,mo,firstDay,daysInMonth,monthName});
+    }
+
+    // Map deliveries by date
+    const delivMap={};
+    allOrders.filter(o=>!o.deliveredDate&&o.status!=='Cancelled').forEach(o=>{
+      const d=effectiveReqDate(o);
+      if(!d) return;
+      if(!delivMap[d]) delivMap[d]=[];
+      delivMap[d].push(o);
+    });
+
+    const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    const calHtml=months.map(({yr,mo,firstDay,daysInMonth,monthName})=>{
+      let cells='';
+      // empty cells before first day
+      for(let i=0;i<firstDay;i++) cells+='<div></div>';
+      for(let d=1;d<=daysInMonth;d++){
+        const dateStr=yr+'-'+(String(mo+1).padStart(2,'0'))+'-'+(String(d).padStart(2,'0'));
+        const orders=delivMap[dateStr]||[];
+        const isToday=dateStr===todayStr;
+        const isPast=dateStr<todayStr;
+        const hasDel=orders.length>0;
+        cells+=`<div onclick="${hasDel?`showCalDay('${dateStr}')`:''}" style="
+          min-height:44px;padding:4px;border-radius:6px;
+          background:${isToday?'var(--blue)':hasDel?'var(--blue-lt)':'transparent'};
+          border:${hasDel&&!isToday?'1px solid var(--blue-dim)':'1px solid transparent'};
+          cursor:${hasDel?'pointer':'default'};
+          opacity:${isPast&&!hasDel?'0.35':'1'};
+          position:relative;
+        ">
+          <div style="font-size:11px;font-weight:${isToday?'700':'500'};color:${isToday?'white':isPast?'var(--grey-400)':'var(--grey-700)'};">${d}</div>
+          ${hasDel?`<div style="font-size:9px;font-weight:700;color:${isToday?'white':'var(--blue)'};margin-top:1px;">${orders.length} SO</div>`:''}
+          ${hasDel&&!isToday?orders.slice(0,2).map(o=>`<div style="font-size:8px;color:var(--grey-600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${esc(o.customer)}</div>`).join(''):''}
+        </div>`;
+      }
+      return `<div style="margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">${monthName} ${yr}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+          ${dayNames.map(d=>`<div style="font-size:10px;font-weight:700;color:var(--grey-400);text-align:center;padding:2px 0">${d}</div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${cells}</div>
+      </div>`;
+    }).join('');
+
+    return `<div class="card" style="margin-bottom:14px">
+      <div class="card-head"><span class="card-title">📅 Delivery Calendar — Pending SOs</span><span style="font-size:11px;color:var(--grey-400)">Click date to view</span></div>
+      <div class="card-body">${calHtml}
+        <div style="display:flex;gap:12px;font-size:11px;color:var(--grey-500);flex-wrap:wrap">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue);margin-right:4px"></span>Today</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue-lt);border:1px solid var(--blue-dim);margin-right:4px"></span>Has pending SO</span>
+        </div>
+      </div>
+    </div>
+    <div id="cal-day-detail" style="display:none;margin-bottom:14px"></div>`;
   })()}
 
   <!-- Summary stats -->
@@ -944,6 +1030,89 @@ function renderDashboard(){
       </div>`).join('')}
     </div>
   </div>`:''}
+
+
+  <!-- Top customers this month -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><span class="card-title">🏆 Top Customers — ${monthLabel(thisMth)}</span></div>
+    <div class="card-body" style="padding:10px 16px">
+      ${topMth.length===0
+        ?`<div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">No orders this month</div>`
+        :topMth.map(([cust,n],i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)">
+        <div style="min-width:20px;font-size:12px;font-weight:700;color:var(--grey-400)">${i+1}</div>
+        <div style="flex:1;font-size:13px;font-weight:600;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cust)}</div>
+        ${bar(n,maxMth,'var(--blue)')}
+        <div style="min-width:32px;text-align:right;font-size:13px;font-weight:700;color:var(--blue)">${n} SO</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Top customers this year -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><span class="card-title">📅 Top Customers — ${thisYear}</span></div>
+    <div class="card-body" style="padding:10px 16px">
+      ${topYr.length===0
+        ?`<div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">No orders this year</div>`
+        :topYr.map(([cust,n],i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)">
+        <div style="min-width:20px;font-size:12px;font-weight:700;color:var(--grey-400)">${i+1}</div>
+        <div style="flex:1;font-size:13px;font-weight:600;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cust)}</div>
+        ${bar(n,maxYr,'var(--navy)')}
+        <div style="min-width:32px;text-align:right;font-size:13px;font-weight:700;color:var(--navy)">${n} SO</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+
+  <!-- Pending GR -->
+  ${(()=>{
+    const pendingGR = allOrders.filter(o=>
+      o.poList && o.poList.some(p=>!p.grNum) && o.status!=='Cancelled'
+    ).sort((a,b)=>{
+      const getExp=o=>o.poList.filter(p=>!p.grNum).map(p=>p.expectedDate||'9999').sort()[0]||'9999';
+      return getExp(a).localeCompare(getExp(b));
+    });
+
+    if(!pendingGR.length) return '';
+
+    return `<div class="card" style="margin-bottom:14px;border:1.5px solid #fde68a">
+      <div class="card-head" style="background:var(--amber-lt)">
+        <span class="card-title" style="color:var(--amber)">📬 Pending Goods Receipt — ${pendingGR.length} SO(s)</span>
+        <span style="font-size:11px;color:var(--amber)">GR not yet received</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        ${pendingGR.map(o=>{
+          const pendingPOsWithIdx=o.poList.map((p,i)=>({...p,_idx:i})).filter(p=>!p.grNum);
+          const receivedPOs=o.poList.filter(p=>p.grNum);
+          return `<div style="padding:10px 16px;border-bottom:1px solid var(--grey-100)">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div>
+                <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
+                <span style="font-size:12px;color:var(--grey-700);margin-left:6px">${esc(o.customer)}</span>
+                <div style="font-size:11px;color:var(--grey-500);margin-top:3px">SO: ${fmt(o.soDate)}${o.requestedDate?' · Req: '+fmt(effectiveReqDate(o)):''}</div>
+              </div>
+              <div style="text-align:right">
+                <span class="badge badge-amber">${pendingPOs.length} PO pending GR</span>
+                ${receivedPOs.length?`<div style="font-size:10px;color:var(--green);margin-top:3px">${receivedPOs.length} received</div>`:''}
+              </div>
+            </div>
+            <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+              ${pendingPOsWithIdx.map(p=>`
+              <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;gap:8px;margin-bottom:3px">
+                <div style="flex:1;min-width:0">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--navy)">${esc(p.poNum)}</span>
+                  <span style="font-size:11px;color:var(--grey-500);margin-left:6px">${esc(p.supplier||'—')}</span>
+                  ${p.expectedDate?`<div style="font-size:10px;color:var(--amber);font-weight:600;margin-top:2px">📅 Exp: ${fmt(p.expectedDate)}</div>`:'<div style="font-size:10px;color:var(--grey-400);margin-top:2px">No expected date</div>'}
+                </div>
+                <button class="btn btn-xs btn-teal" onclick="openSOFromDash('${o.id}',true,${p._idx})" type="button">📥 Key GR</button>
+              </div>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  })()}
 
   <!-- Pending Discrepancy -->
   ${(()=>{
@@ -979,38 +1148,6 @@ function renderDashboard(){
       </div>
     </div>`;
   })()}
-
-  <!-- Top customers this month -->
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-head"><span class="card-title">🏆 Top Customers — ${monthLabel(thisMth)}</span></div>
-    <div class="card-body" style="padding:10px 16px">
-      ${topMth.length===0
-        ?`<div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">No orders this month</div>`
-        :topMth.map(([cust,n],i)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)">
-        <div style="min-width:20px;font-size:12px;font-weight:700;color:var(--grey-400)">${i+1}</div>
-        <div style="flex:1;font-size:13px;font-weight:600;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cust)}</div>
-        ${bar(n,maxMth,'var(--blue)')}
-        <div style="min-width:32px;text-align:right;font-size:13px;font-weight:700;color:var(--blue)">${n} SO</div>
-      </div>`).join('')}
-    </div>
-  </div>
-
-  <!-- Top customers this year -->
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-head"><span class="card-title">📅 Top Customers — ${thisYear}</span></div>
-    <div class="card-body" style="padding:10px 16px">
-      ${topYr.length===0
-        ?`<div style="text-align:center;color:var(--grey-400);font-size:12px;padding:12px">No orders this year</div>`
-        :topYr.map(([cust,n],i)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--grey-100)">
-        <div style="min-width:20px;font-size:12px;font-weight:700;color:var(--grey-400)">${i+1}</div>
-        <div style="flex:1;font-size:13px;font-weight:600;color:var(--grey-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cust)}</div>
-        ${bar(n,maxYr,'var(--navy)')}
-        <div style="min-width:32px;text-align:right;font-size:13px;font-weight:700;color:var(--navy)">${n} SO</div>
-      </div>`).join('')}
-    </div>
-  </div>
 
   <!-- Pending Delivery grouped by stage -->
   <div class="card">
@@ -1188,59 +1325,113 @@ function togglePOPanel(){
 }
 
 function renderPOPanel(){
-  // Collect all SOs that have POs
   const sosWithPO = db.orders.filter(o=>o.poList&&o.poList.length>0)
     .sort((a,b)=>b.soDate.localeCompare(a.soDate));
 
   if(sosWithPO.length===0){
-    return `<div style="text-align:center;padding:20px;font-size:12px;color:var(--grey-400)">
-      No POs added yet. Add PO when creating or editing a SO.
-    </div>`;
+    return '<div style="text-align:center;padding:20px;font-size:12px;color:var(--grey-400)">No POs added yet.</div>';
   }
 
-  return sosWithPO.map(o=>`
-    <div style="border:1px solid var(--grey-200);border-radius:8px;margin-bottom:10px;overflow:hidden">
-      <div style="background:var(--grey-50);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+  // Separate pending and completed
+  const pending = sosWithPO.filter(o=>o.poList.some(p=>!p.grNum));
+  const completed = sosWithPO.filter(o=>o.poList.every(p=>p.grNum));
+
+  const renderSO=(o)=>`
+    <div style="border:1.5px solid var(--grey-200);border-radius:10px;margin-bottom:10px;overflow:hidden">
+      <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--grey-50)">
         <div>
           <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--navy)">${esc(o.soNum)}</span>
-          <span style="font-size:12px;color:var(--grey-500);margin-left:6px">${esc(o.customer)}</span>
+          <span style="font-size:12px;color:var(--grey-600);margin-left:8px">${esc(o.customer)}</span>
+          <span style="font-size:11px;color:var(--grey-400);margin-left:6px">· SO: ${fmt(o.soDate)}</span>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           ${o.poList.every(p=>p.grNum)
-            ?`<span class="badge badge-green">✅ All GR received</span>`
-            :`<span class="badge badge-amber">⏳ ${o.poList.filter(p=>!p.grNum).length} pending</span>`}
-          <button class="btn btn-xs btn-ghost" onclick="openSO('${o.id}')" type="button">Open SO</button>
+            ?'<span class="badge badge-green">✅ All GR Received</span>'
+            :`<span class="badge badge-amber">⏳ ${o.poList.filter(p=>!p.grNum).length}/${o.poList.length} Pending GR</span>`}
+          <button class="btn btn-xs btn-ghost" onclick="openSO('${o.id}')" type="button">Open SO ›</button>
         </div>
       </div>
       ${o.poList.map((p,pi)=>`
-      <div style="padding:10px 14px;border-top:1px solid var(--grey-100);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--grey-800);font-family:'JetBrains Mono',monospace">${esc(p.poNum)}</div>
-          <div style="font-size:11px;color:var(--grey-500);margin-top:2px">${esc(p.supplier||'—')} ${p.expectedDate?'· Exp: '+fmt(p.expectedDate):''}</div>
+      <div style="padding:10px 14px;border-top:1px solid var(--grey-100);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:${p.grNum?'white':'#fffbeb'}">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(p.poNum)}</span>
+            <span style="font-size:11px;color:var(--grey-500)">${esc(p.supplier||'—')}</span>
+            ${p.expectedDate?`<span style="font-size:11px;color:var(--grey-400)">Exp: ${fmt(p.expectedDate)}</span>`:''}
+          </div>
+          ${p.grNum?`<div style="font-size:11px;color:var(--green);margin-top:3px;font-weight:600">GR: ${esc(p.grNum)} · ${fmt(p.grDate)}</div>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${p.grNum
-            ?`<div style="text-align:right">
-                <div class="badge badge-green">✅ GR: ${esc(p.grNum)}</div>
-                <div style="font-size:10px;color:var(--grey-400);margin-top:2px">${fmt(p.grDate)}</div>
-              </div>`
-            :`<span class="badge badge-amber">⏳ Awaiting goods</span>`}
+            ?'<span class="badge badge-green">✅ GR Received</span>'
+            :'<span class="badge badge-amber">⏳ Awaiting GR</span>'}
           <button class="btn btn-xs btn-ghost" onclick="editPO('${o.id}',${pi})" type="button">✏️</button>
           ${!p.grNum?`<button class="btn btn-xs btn-teal" onclick="keyGR('${o.id}',${pi})" type="button">📥 Key GR</button>`:''}
           <button class="btn btn-xs btn-danger" onclick="removePO('${o.id}',${pi})" type="button">✕</button>
         </div>
       </div>`).join('')}
       <div style="padding:8px 14px;border-top:1px solid var(--grey-100);background:var(--grey-50)">
-        <button class="btn btn-xs" style="background:var(--purple-lt);color:var(--purple)" onclick="addPO('${o.id}')" type="button">+ Add PO to this SO</button>
+        <button class="btn btn-xs" style="background:var(--purple-lt);color:var(--purple)" onclick="addPO('${o.id}')" type="button">+ Add PO</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+
+  let html='';
+  if(pending.length){
+    html+=`<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">⏳ Pending GR (${pending.length} SO)</div>`;
+    html+=pending.map(renderSO).join('');
+  }
+  if(completed.length){
+    html+=`<div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px;margin:${pending.length?'14px':0} 0 8px">✅ All GR Received (${completed.length} SO)</div>`;
+    html+=completed.map(renderSO).join('');
+  }
+  return html;
 }
 
-function openSOFromDash(id){
-  // Switch to orders tab and open the SO drawer
+function showCalDay(dateStr){
+  const delivMap={};
+  db.orders.filter(o=>!o.deliveredDate&&o.status!=='Cancelled').forEach(o=>{
+    const d=effectiveReqDate(o);
+    if(!d) return;
+    if(!delivMap[d]) delivMap[d]=[];
+    delivMap[d].push(o);
+  });
+  const orders=delivMap[dateStr]||[];
+  if(!orders.length) return;
+  const el=document.getElementById('cal-day-detail');
+  if(!el) return;
+  const [y,m,d]=dateStr.split('-');
+  el.style.display='block';
+  el.innerHTML=`<div class="card">
+    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
+      <span class="card-title">📅 ${d}/${m}/${y} — ${orders.length} SO(s) due</span>
+      <button onclick="document.getElementById('cal-day-detail').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--grey-400)">✕</button>
+    </div>
+    <div class="card-body" style="padding:8px 16px">
+      ${orders.map(o=>{
+        const stage=stageOf(o);
+        return `<div onclick="openSOFromDash('${o.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--grey-100);border-radius:7px;margin-bottom:6px;cursor:pointer">
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
+            <span style="font-size:12px;color:var(--grey-700);margin-left:6px">${esc(o.customer)}</span>
+            <div style="font-size:11px;color:var(--grey-500);margin-top:2px">SK: ${esc((o.storeKeepers||[]).join(', ')||'—')} · DO: ${esc(o.doNum||'—')}</div>
+          </div>
+          <span class="badge ${stagePillClass(stage)}" style="font-size:10px">${stageLabel(stage)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function openSOFromDash(id, openGR, poIdx){
   switchTab('orders');
-  setTimeout(()=>openSO(id), 300);
+  setTimeout(()=>{
+    if(openGR && poIdx!==undefined){
+      keyGR(id, poIdx);
+    } else {
+      openSO(id);
+    }
+  }, 300);
 }
 
 function filterMonth(m){
@@ -1360,30 +1551,29 @@ function renderNewPORows(){
   const container = document.getElementById('new-po-list');
   if(!container) return;
   if(newPORows.length===0){
-    container.innerHTML='<div style="font-size:12px;color:var(--grey-400);text-align:center;padding:8px">No POs added — click "+ Add PO" if goods need to be ordered from supplier</div>';
+    container.innerHTML='<div style="text-align:center;padding:12px;font-size:12px;color:var(--grey-400)">No POs added yet</div>';
     return;
   }
   container.innerHTML = newPORows.map((p,i)=>`
-    <div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:12px;font-weight:700;color:var(--purple)">PO ${i+1}</span>
-        <button class="btn btn-danger btn-xs" onclick="removeNewPORow(${i})" type="button">✕ Remove</button>
+    <div style="background:white;border:1.5px solid var(--grey-200);border-radius:8px;overflow:hidden">
+      <div style="background:var(--purple-lt);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.4px">PO ${i+1}</span>
+        <button class="btn btn-xs btn-danger" onclick="removeNewPORow(${i})" type="button">✕ Remove</button>
       </div>
-      <div class="form-row">
-        <div class="fg">
-          <label>PO Number *</label>
-          <input placeholder="e.g. PO-2026-001" value="${p.poNum||''}"
-            oninput="newPORows[${i}].poNum=this.value">
-        </div>
-        <div class="fg">
-          <label>Supplier Name *</label>
-          <input placeholder="Supplier name" value="${p.supplier||''}"
-            oninput="newPORows[${i}].supplier=this.value">
-        </div>
-        <div class="fg">
-          <label>Expected Delivery Date</label>
-          <input type="date" value="${p.expectedDate||''}"
-            oninput="newPORows[${i}].expectedDate=this.value">
+      <div style="padding:10px 12px">
+        <div class="form-row">
+          <div class="fg">
+            <label>PO Number *</label>
+            <input placeholder="e.g. M/PO-2608-001" value="${p.poNum||''}" oninput="newPORows[${i}].poNum=this.value">
+          </div>
+          <div class="fg">
+            <label>Supplier *</label>
+            <input placeholder="Supplier name" value="${p.supplier||''}" oninput="newPORows[${i}].supplier=this.value">
+          </div>
+          <div class="fg">
+            <label>Expected Date</label>
+            <input type="date" value="${p.expectedDate||''}" oninput="newPORows[${i}].expectedDate=this.value">
+          </div>
         </div>
       </div>
     </div>`).join('');
