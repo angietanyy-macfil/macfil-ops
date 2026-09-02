@@ -748,7 +748,13 @@ async function doLogin(username, password){
   document.getElementById('app').style.display='block';
   document.getElementById('user-chip').textContent=roleIcon(currentUser.role)+' '+currentUser.name;
   buildNav();
-  switchTab('dashboard'); // show dashboard first
+  // Show loading screen immediately
+  document.getElementById('main-content').innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--grey-400)"><div style="font-size:32px;margin-bottom:12px">⏳</div><div style="font-size:14px;font-weight:600;color:var(--navy)">Loading your data...</div><div style="font-size:12px;margin-top:6px">Connecting to database</div></div>';
+  currentTab='dashboard';
+  // Also activate dashboard nav button
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const db_btn=document.getElementById('bnav-dashboard');
+  if(db_btn) db_btn.classList.add('active');
 
   // Load data in background with timeout
   try {
@@ -756,8 +762,9 @@ async function doLogin(username, password){
     await Promise.race([loadDB(), timeout]);
     subscribeRealtime();
     startAutoPing();
-    showSyncStatus('ok'); // force show ok after successful load
-    switchTab('dashboard'); // refresh with data
+    showSyncStatus('ok');
+    // Refresh whatever tab is currently showing
+    switchTab(currentTab||'dashboard');
   } catch(e) {
     showToast('⚠️ Could not load data — check internet connection');
     showSyncStatus('error');
@@ -803,6 +810,12 @@ function switchTab(tab){
   const btn=document.getElementById('bnav-'+tab);
   if(btn) btn.classList.add('active');
   const mc=document.getElementById('main-content');
+  // If data not loaded yet, show loading and retry
+  if(!db.orders||db.orders.length===0){
+    mc.innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:32px;margin-bottom:12px">⏳</div><div style="font-size:14px;font-weight:600;color:var(--navy)">Loading data...</div></div>';
+    setTimeout(()=>{if(currentTab===tab&&db.orders&&db.orders.length>0) switchTab(tab);},2000);
+    return;
+  }
   if(tab==='dashboard') mc.innerHTML=renderDashboard();
   else if(tab==='orders') mc.innerHTML=renderOrders();
   else if(tab==='kpi') mc.innerHTML=renderKPI();
