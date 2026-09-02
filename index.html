@@ -799,7 +799,7 @@ function buildNav(){
     MGR: [{id:'dashboard',icon:'📈',label:'Dashboard'},{id:'orders',icon:'📋',label:'Orders'},{id:'kpi',icon:'📊',label:'All KPI'},{id:'export',icon:'⬇',label:'Export'},{id:'admin',icon:'⚙️',label:'Admin'}],
   }[currentUser.role];
   document.getElementById('bottom-nav').innerHTML = tabs.map(t=>`
-    <button class="bnav-btn" id="bnav-${t.id}" onclick="switchTab('${t.id}')">
+    <button class="bnav-btn" id="bnav-${t.id}" data-tab="${t.id}" onclick="switchTab(this.dataset.tab)">
       <span class="bnav-icon">${t.icon}</span>
       <span class="bnav-label">${t.label}</span>
     </button>`).join('');
