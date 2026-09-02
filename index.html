@@ -2532,6 +2532,58 @@ function renderKPI(){
         ${r4?`<div class="rating-badge" style="background:${ratingColor(r4)}20;color:${ratingColor(r4)}">Rating ${r4} · ${ratingLabel(r4)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
       </div>
     </div>`;
+
+    // ── Mileage Summary ───────────────────────────────────────────────
+    const kmOrders=dOrders.filter(o=>o.mileageTotal&&o.mileageTotal>0);
+    const totalKM=kmOrders.reduce((s,o)=>s+(o.mileageTotal||0),0);
+    const lorryUsage={};
+    kmOrders.forEach(o=>{const l=o.lorryDisplay||o.lorryNumber||'Unknown';lorryUsage[l]=(lorryUsage[l]||0)+(o.mileageTotal||0);});
+
+    html+=`<div style="margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">🚛 Mileage Summary</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="kpi-card" style="margin:0">
+          <div class="kpi-label">Total KM This Period</div>
+          <div class="kpi-value" style="color:var(--navy)">${totalKM.toLocaleString()} <span style="font-size:16px">KM</span></div>
+          <div class="kpi-sub">From ${kmOrders.length} deliveries with mileage recorded</div>
+        </div>
+        <div class="kpi-card" style="margin:0">
+          <div class="kpi-label">Avg KM per Delivery</div>
+          <div class="kpi-value" style="color:var(--navy)">${kmOrders.length?(totalKM/kmOrders.length).toFixed(1):'0'} <span style="font-size:16px">KM</span></div>
+          <div class="kpi-sub">Average trip distance</div>
+        </div>
+      </div>
+      ${Object.keys(lorryUsage).length>0?`
+      <div class="kpi-card" style="margin-bottom:8px">
+        <div class="kpi-label">KM by Lorry</div>
+        ${Object.entries(lorryUsage).sort((a,b)=>b[1]-a[1]).map(([lorry,km])=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--grey-100)">
+          <div style="min-width:100px;font-size:12px;font-weight:700;color:var(--navy);font-family:'JetBrains Mono',monospace">${esc(lorry)}</div>
+          <div style="flex:1;background:var(--grey-100);border-radius:4px;height:7px;overflow:hidden">
+            <div style="width:${Math.round((km/totalKM)*100)}%;height:100%;background:var(--amber);border-radius:4px"></div>
+          </div>
+          <div style="min-width:60px;text-align:right;font-size:12px;font-weight:700;color:var(--amber)">${km.toLocaleString()} KM</div>
+        </div>`).join('')}
+      </div>`:''}
+      ${kmOrders.length>0?`
+      <div class="kpi-card">
+        <div class="kpi-label" style="margin-bottom:8px">KM Detail by SO</div>
+        ${kmOrders.sort((a,b)=>(b.dispatchedDate||'').localeCompare(a.dispatchedDate||'')).map(o=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--grey-100);gap:8px;flex-wrap:wrap">
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
+            <span style="font-size:11px;color:var(--grey-500);margin-left:6px">${esc(o.customer)}</span>
+            <div style="font-size:10px;color:var(--grey-400);margin-top:1px">${fmt(o.dispatchedDate||'')} · ${esc(o.lorryDisplay||o.lorryNumber||'—')}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;font-weight:700;color:var(--amber)">${(o.mileageTotal||0).toLocaleString()} KM</div>
+            <div style="font-size:10px;color:var(--grey-400)">${o.mileageBefore||'—'} → ${o.mileageAfter||'—'}</div>
+          </div>
+        </div>`).join('')}
+      </div>`
+      :'<div style="font-size:12px;color:var(--grey-400);text-align:center;padding:12px">No mileage recorded yet</div>'}
+    </div>
+    <hr class="divider">`;
   }
 
   return html;
@@ -2663,15 +2715,17 @@ function exportCSV(type){
   let csv='';
 
   if(type==='orders'){
-    const heads=['SO Number','Customer','SO Date','Requested Delivery Date','Delivery Type','Status','DO Number','Invoice Number','DO Date','Storekeeper(s)','Picking Started','Picking Done','Stock Card Updated','Discrepancy','Discrepancy Note','Driver','Actual Delivery Date','On Time?','Delivery Error?','Error Note','Total Days SO→Delivery','Remarks'];
+    const heads=['SO Number','Customer','SO Date','OC Received Date','Requested Delivery Date','Delivery Type','Status','DO Number','Invoice Number','DO Date','Storekeeper(s)','Picking Started','Picking Done','Stock Card Updated','Discrepancy','Discrepancy Note','Driver','Lorry Number','Mileage Before (KM)','Mileage After (KM)','Total KM','Dispatched Date','Dispatched Time','Actual Delivery Date','Delivered Time','On Time?','Delivery Error?','Error Note','Total Days SO→Delivery','Remarks'];
     csv=heads.join(',')+'\r\n';
     csv+=orders.map(o=>{
       const onTime=o.requestedDate&&o.deliveredDate?(o.deliveredDate<=o.requestedDate?'Yes':'No'):'';
       const days=o.deliveredDate?daysBetween(o.soDate,o.deliveredDate):'';
-      return[o.soNum,o.customer,fmt(o.soDate),fmt(o.requestedDate),o.deliveryType||'',o.status||'Active',
+      const lorryDisp=o.lorryDisplay||(o.lorryNumber==='Other'?o.lorryNumberOther:o.lorryNumber)||'';
+      return[o.soNum,o.customer,fmt(o.soDate),fmt(o.ocReceivedDate),fmt(o.requestedDate),o.deliveryType||'',o.status||'Active',
         o.doNum||'',o.invNum||'',fmt(o.doDate),(o.storeKeepers||[]).join('; '),
         fmt(o.pickingStarted),fmt(o.pickingDone),o.stockCardUpdated||'',o.discrepancy||'No',o.discrepancyNote||'',
-        o.driverName||'',fmt(o.deliveredDate),onTime,o.deliveryError||'No',o.deliveryErrorNote||'',days,o.remarks||'']
+        o.driverName||'',lorryDisp,o.mileageBefore||'',o.mileageAfter||'',o.mileageTotal||'',
+        fmt(o.dispatchedDate),o.dispatchedTime||'',fmt(o.deliveredDate),o.deliveredTime||'',onTime,o.deliveryError||'No',o.deliveryErrorNote||'',days,o.remarks||'']
         .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
     }).join('\r\n');
   } else {
