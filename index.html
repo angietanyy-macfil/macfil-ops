@@ -406,11 +406,9 @@ let pendingNotifications = [];
 async function loadDB(){
   try {
     showSyncStatus('loading');
-    console.log('Attempting Supabase connection...');
-    console.log('URL:', SUPABASE_URL);
-    console.log('Key starts with:', SUPABASE_KEY.substring(0,20));
+    console.log('Connecting to Supabase...');
     const {data, error} = await _sb.from('orders').select('id,data');
-    console.log('Response - data:', data ? data.length+' rows' : 'null', 'error:', error);
+
     if(error){
       console.error('Supabase error details:', error);
       const msg = error.message||error.hint||error.details||JSON.stringify(error);
@@ -418,7 +416,7 @@ async function loadDB(){
       throw new Error(msg);
     }
     db.orders = (data||[]).map(r=>({id:r.id,...r.data}));
-    console.log('Loaded', db.orders.length, 'orders successfully');
+
     showSyncStatus('ok');
   } catch(e) {
     console.error('Load error full:', e);
@@ -432,12 +430,24 @@ async function saveDB(changedOrder){
     showSyncStatus('saving');
     const {id,...data} = changedOrder;
     const {error} = await _sb.from('orders').upsert({id, data, updated_at: new Date().toISOString()});
-    if(error) throw new Error(error.message||JSON.stringify(error));
+    if(error){
+      console.error('Save error:', error);
+      throw new Error(error.message||JSON.stringify(error));
+    }
     showSyncStatus('ok');
   } catch(e) {
-    console.error('Save error:',e.message||e);
+    console.error('Save error full:',e);
     showSyncStatus('error');
     showToast('⚠️ Save failed: '+(e.message||'Check connection'));
+    // Retry once after 2 seconds
+    setTimeout(async()=>{
+      try{
+        const {id,...data} = changedOrder;
+        await _sb.from('orders').upsert({id, data, updated_at: new Date().toISOString()});
+        showSyncStatus('ok');
+        showToast('✅ Saved on retry');
+      }catch(e2){console.error('Retry failed:',e2);}
+    }, 2000);
   }
 }
 
@@ -476,7 +486,11 @@ function subscribeRealtime(){
   realtimeChannel = _sb.channel('orders-changes')
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'},
       payload => handleRealtimeChange(payload))
-    .subscribe();
+    .subscribe((status)=>{
+      console.log('Realtime status:', status);
+      if(status==='SUBSCRIBED') showSyncStatus('ok');
+      // Don't change to error on realtime issues - data still works via REST
+    });
 }
 
 // ── AUTO PING (keep Supabase awake, triggers if idle >5 days) ─────────────
@@ -486,6 +500,9 @@ async function pingSupabase(){
     await _sb.from('orders').select('id').limit(1);
     localStorage.setItem(PING_KEY, Date.now().toString());
     console.log('Supabase pinged at', new Date().toLocaleString('en-MY'));
+    // Only update to ok if not already saving
+    const el=document.getElementById('sync-status');
+    if(el&&el.textContent.includes('error')) showSyncStatus('ok');
   } catch(e){ console.log('Ping failed:', e.message); }
 }
 function startAutoPing(){
@@ -739,6 +756,7 @@ async function doLogin(username, password){
     await Promise.race([loadDB(), timeout]);
     subscribeRealtime();
     startAutoPing();
+    showSyncStatus('ok'); // force show ok after successful load
     switchTab('dashboard'); // refresh with data
   } catch(e) {
     showToast('⚠️ Could not load data — check internet connection');
