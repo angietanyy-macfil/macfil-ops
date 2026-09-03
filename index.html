@@ -1040,20 +1040,21 @@ function renderDashboard(){
   <!-- 1. Summary Stats -->
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">
     ${[
-      ['📋','SO This Month',mthOrders.length,'var(--blue)','by OC received date'],
-      ['✅','Delivered (Month)',delivMth.length,'var(--green)','by delivered date'],
-      ['⏳','Pending Delivery',pending.length,'var(--amber)','not yet delivered'],
-      ['📦','Year Total SOs',yrOrders.length,'var(--navy)','FYE '+thisYear],
-    ].map(([ic,lb,val,col,sub])=>`
-    <div class="card" style="margin:0;padding:12px 14px;display:flex;align-items:center;gap:10px">
+      ['📋','SO This Month',mthOrders.length,'var(--blue)','by OC received date','showStatDetail("month")'],
+      ['✅','Delivered (Month)',delivMth.length,'var(--green)','by delivered date','showStatDetail("delivered")'],
+      ['⏳','Pending Delivery',pending.length,'var(--amber)','not yet delivered','showStatDetail("pending")'],
+      ['📦','Year Total SOs',yrOrders.length,'var(--navy)','FYE '+thisYear,'showStatDetail("year")'],
+    ].map(([ic,lb,val,col,sub,fn])=>`
+    <div class="card" onclick="${fn}" style="margin:0;padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''">
       <div style="font-size:22px">${ic}</div>
       <div>
         <div style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${col}">${val}</div>
         <div style="font-size:11px;color:var(--grey-600);font-weight:600">${lb}</div>
-        <div style="font-size:10px;color:var(--grey-400)">${sub}</div>
+        <div style="font-size:10px;color:var(--grey-400)">${sub} · tap to view ›</div>
       </div>
     </div>`).join('')}
   </div>
+  <div id="stat-detail" style="display:none;margin-bottom:12px"></div>
 
   <!-- 2. Top Customers -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
@@ -1286,21 +1287,22 @@ function renderOrders(){
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;min-width:0">
-    ${[['⏳','Pending OC',stages.pendingOC,'var(--grey-500)'],['📬','Pending SK',stages.pendingSK,'var(--grey-500)'],['🚛','Awaiting Goods',stages.awaitingGoods,'var(--purple)'],['⚠️','Discrepancy',stages.pendingDiscrep,'var(--amber)']]
-      .map(([ic,lb,ct,cc])=>`<div class="card" style="margin:0;padding:10px 6px;text-align:center">
+    ${[['⏳','Pending OC',stages.pendingOC,'var(--grey-500)','pendingOC'],['📬','Pending SK',stages.pendingSK,'var(--grey-500)','pendingSK'],['🚛','Awaiting Goods',stages.awaitingGoods,'var(--purple)','awaitingGoods'],['⚠️','Discrepancy',stages.pendingDiscrep,'var(--amber)','pendingDiscrep']]
+      .map(([ic,lb,ct,cc,stg])=>`<div class="card" data-stg="${stg}" data-ct="${ct}" onclick="if(this.dataset.ct>0)showOrderStageDetail(this.dataset.stg)" style="margin:0;padding:10px 6px;text-align:center;cursor:${ct>0?'pointer':'default'}">
         <div style="font-size:16px">${ic}</div>
         <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${cc}">${ct}</div>
         <div style="font-size:9px;color:var(--grey-500);margin-top:2px">${lb}</div>
       </div>`).join('')}
   </div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;min-width:0">
-    ${[['📦','Picking',stages.picking,'var(--blue)'],['📄','Pending DO',stages.pendingDO,'var(--amber)'],['🚚','Dispatched',stages.dispatched,'var(--navy)'],['✅','Delivered',stages.delivered,'var(--green)']]
-      .map(([ic,lb,ct,cc])=>`<div class="card" style="margin:0;padding:10px 6px;text-align:center">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;min-width:0">
+    ${[['📦','Picking',stages.picking,'var(--blue)','picking'],['📄','Pending DO',stages.pendingDO,'var(--amber)','pendingDO'],['🚚','Dispatched',stages.dispatched,'var(--navy)','dispatched'],['✅','Delivered',stages.delivered,'var(--green)','delivered']]
+      .map(([ic,lb,ct,cc,stg])=>`<div class="card" data-stg="${stg}" data-ct="${ct}" onclick="if(this.dataset.ct>0)showOrderStageDetail(this.dataset.stg)" style="margin:0;padding:10px 6px;text-align:center;cursor:${ct>0?'pointer':'default'}">
         <div style="font-size:16px">${ic}</div>
         <div style="font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${cc}">${ct}</div>
         <div style="font-size:9px;color:var(--grey-500);margin-top:2px">${lb}</div>
       </div>`).join('')}
   </div>
+  <div id="order-stage-detail" style="display:none;margin-bottom:10px"></div>
 
   <div id="search-count" style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:8px;padding:0 2px"></div>
   <div class="so-list">
@@ -1380,6 +1382,93 @@ function renderPOPanel(){
     html+=completed.map(renderSO).join('');
   }
   return html;
+}
+
+function showOrderStageDetail(stg){
+  const el=document.getElementById('order-stage-detail');
+  if(!el) return;
+  // Toggle off if same stage clicked again
+  if(el.style.display!=='none'&&el.dataset.stg===stg){
+    el.style.display='none';el.dataset.stg='';return;
+  }
+  el.dataset.stg=stg;
+  const orders=db.orders.filter(o=>stageOf(o)===stg||(stg==='delivered'&&o.deliveredDate));
+  const title=stageLabel(stg)||stg;
+  el.style.display='block';
+  el.innerHTML=`<div class="card" style="border:1.5px solid var(--blue-dim)">
+    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
+      <span class="card-title">${title} — ${orders.length} SO(s)</span>
+      <button onclick="document.getElementById('order-stage-detail').style.display='none';document.getElementById('order-stage-detail').dataset.stg=''" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--grey-400)">✕</button>
+    </div>
+    <div class="card-body" style="padding:4px 16px 10px">
+      ${orders.length===0
+        ?'<div style="text-align:center;color:var(--grey-400);padding:12px;font-size:12px">No orders in this stage</div>'
+        :orders.sort((a,b)=>(effectiveReqDate(a)||'9999').localeCompare(effectiveReqDate(b)||'9999')).map(o=>`
+      <div onclick="openSO('${o.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--grey-100);cursor:pointer;gap:8px">
+        <div>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
+          <span style="font-size:12px;color:var(--grey-700);margin-left:6px">${esc(o.customer)}</span>
+          <div style="font-size:11px;color:var(--grey-500);margin-top:1px">
+            SO: ${fmt(o.soDate)}
+            ${effectiveReqDate(o)?' · Req: '+fmt(effectiveReqDate(o)):''}
+            ${o.storeKeepers&&o.storeKeepers.length?' · SK: '+esc(o.storeKeepers.join(', ')):''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${effectiveReqDate(o)?`<div style="font-size:11px;font-weight:600;color:${(o.requestedDateRev1||o.requestedDateRev2)?'var(--amber)':'var(--grey-600)'}">${fmt(effectiveReqDate(o))}</div>`:''}
+          ${o.doNum?`<div style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--teal)">${esc(o.doNum)}</div>`:''}
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function showStatDetail(type){
+  const now=new Date();
+  const thisMth=now.toLocaleDateString('en-CA',{timeZone:'Asia/Kuala_Lumpur'}).slice(0,7);
+  const thisYear=thisMth.slice(0,4);
+  const delivMth=db.orders.filter(o=>o.deliveredDate&&o.deliveredDate.startsWith(thisMth));
+  const pending=db.orders.filter(o=>!o.deliveredDate&&o.status!=='Cancelled');
+  const mthOrders=db.orders.filter(o=>(o.ocReceivedDate||o.soDate||'').startsWith(thisMth));
+  const yrOrders=db.orders.filter(o=>(o.ocReceivedDate||o.soDate||'').startsWith(thisYear));
+
+  const map={
+    month:{title:'SO This Month ('+monthLabel(thisMth)+')',orders:mthOrders},
+    delivered:{title:'Delivered This Month',orders:delivMth},
+    pending:{title:'Pending Delivery',orders:pending},
+    year:{title:'Year Total SOs ('+thisYear+')',orders:yrOrders},
+  };
+  const {title,orders}=map[type]||{title:'',orders:[]};
+
+  const el=document.getElementById('stat-detail');
+  if(!el) return;
+
+  // Toggle
+  if(el.style.display!=='none'&&el.dataset.type===type){
+    el.style.display='none';el.dataset.type='';return;
+  }
+  el.dataset.type=type;
+  el.style.display='block';
+  el.innerHTML=`<div class="card">
+    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
+      <span class="card-title">${title} (${orders.length})</span>
+      <button onclick="document.getElementById('stat-detail').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--grey-400)">✕</button>
+    </div>
+    <div class="card-body" style="padding:4px 16px 10px">
+      ${orders.length===0?'<div style="text-align:center;color:var(--grey-400);padding:12px;font-size:12px">No orders</div>'
+        :orders.sort((a,b)=>(b.soDate||'').localeCompare(a.soDate||'')).map(o=>`
+      <div onclick="openSOFromDash('${o.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--grey-100);cursor:pointer;gap:8px">
+        <div>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
+          <span style="font-size:12px;color:var(--grey-700);margin-left:6px">${esc(o.customer)}</span>
+          <div style="font-size:11px;color:var(--grey-500);margin-top:1px">SO: ${fmt(o.soDate)}${o.deliveredDate?' · Delivered: '+fmt(o.deliveredDate):''}</div>
+        </div>
+        <span class="badge ${stagePillClass(stageOf(o))}" style="font-size:10px;flex-shrink:0">${stageLabel(stageOf(o))}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function showCalDay(dateStr){
@@ -1828,6 +1917,12 @@ function openSO(id){
         </div>
         <div class="form-row">
           <div class="fg">
+            <label>Mileage Before (KM) <span style="font-size:10px;color:var(--grey-400)">Fill before departure</span></label>
+            <input type="number" id="d-mileage-before" placeholder="e.g. 12450" value="${o.mileageBefore||''}" ${o.dispatchedDate?'':''}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="fg">
             <label>Mileage Before (KM)</label>
             <input type="number" id="d-mileage-before" placeholder="e.g. 12450" value="${o.mileageBefore||''}">
           </div>
@@ -1866,16 +1961,27 @@ function openSO(id){
       <div style="background:var(--green-lt);border:1px solid #86efac;border-radius:8px;padding:12px;${!o.dispatchedDate?'opacity:.5;pointer-events:none':''}">
         <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px">✅ Step 2 — Confirm Delivery</div>
         <div class="form-row">
+          <div class="fg">
+            <label>Mileage After (KM) <span style="font-size:10px;color:var(--grey-400)">Fill upon arrival</span></label>
+            <input type="number" id="d-mileage-after" placeholder="e.g. 12580" value="${o.mileageAfter||''}" ${!o.dispatchedDate?'disabled':''} oninput="calcTripKM()">
+          </div>
+          <div class="fg">
+            <label>Total KM (Auto)</label>
+            <input type="number" id="d-mileage-total" value="${o.mileageBefore&&o.mileageAfter?o.mileageAfter-o.mileageBefore:''}" readonly style="background:var(--grey-50);color:var(--grey-500)" placeholder="Auto">
+          </div>
+        </div>
+        <div class="form-row">
           <div class="fg"><label>Delivery Error?</label>
-            <select id="d-err" ${!o.dispatchedDate?'disabled':''}>
+            <select id="d-err">
               <option value="No" ${o.deliveryError!=='Yes'?'selected':''}>No — Delivered correctly</option>
               <option value="Yes" ${o.deliveryError==='Yes'?'selected':''}>Yes — Error occurred</option>
             </select>
           </div>
-          <div class="fg" style="grid-column:span 2"><label>Error / Remarks</label><input id="d-errnote" value="${esc(o.deliveryErrorNote||'')}" ${!o.dispatchedDate?'disabled':''}></div>
+          <div class="fg" style="grid-column:span 2"><label>Error / Remarks</label><input id="d-errnote" value="${esc(o.deliveryErrorNote||'')}"></div>
         </div>
         ${o.deliveredDate
-          ?`<div style="background:var(--green-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--green);font-weight:600">✅ Delivered on ${fmt(o.deliveredDate)} at ${o.deliveredTime||'—'} (Malaysia Time)</div>`
+          ?`<div style="background:var(--green-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--green);font-weight:600;margin-bottom:8px">✅ Delivered on ${fmt(o.deliveredDate)} at ${o.deliveredTime||'—'} (Malaysia Time)</div>
+            <button class="btn btn-sm" style="background:var(--grey-600);color:white;width:100%;justify-content:center;padding:10px" onclick="updateLDError('${id}')" type="button">💾 Save Error / Mileage Update</button>`
           :`<button class="btn btn-sm" style="background:var(--green);color:white;width:100%;justify-content:center;padding:13px;font-size:14px" onclick="updateLD('${id}',true)" type="button" ${!o.dispatchedDate?'disabled':''}>✅ Confirm Delivered — Record Current Time</button>`
         }
       </div>
@@ -1968,6 +2074,30 @@ function settleDiscrep(id){
   document.getElementById('main-content').innerHTML=renderOrders();
 }
 
+function calcTripKM(){
+  const before=parseFloat(document.getElementById('d-mileage-before')?.value)||0;
+  const after=parseFloat(document.getElementById('d-mileage-after')?.value)||0;
+  const total=document.getElementById('d-mileage-total');
+  if(total&&before&&after&&after>before) total.value=after-before;
+  else if(total) total.value='';
+}
+
+function updateLDError(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const mAfterEl=document.getElementById('d-mileage-after');
+  if(mAfterEl&&mAfterEl.value){
+    o.mileageAfter=parseFloat(mAfterEl.value);
+    if(o.mileageBefore&&o.mileageAfter>o.mileageBefore)
+      o.mileageTotal=o.mileageAfter-o.mileageBefore;
+  }
+  o.deliveryError=document.getElementById('d-err').value;
+  o.deliveryErrorNote=document.getElementById('d-errnote').value.trim();
+  saveDB(o);
+  showToast(o.deliveryError==='Yes'?'⚠️ Delivery error recorded':'✅ Update saved');
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
 function toggleLorryRemark(val){
   const grp=document.getElementById('d-lorry-remark-grp');
   if(grp) grp.style.display=val==='Other'?'':'none';
@@ -1996,10 +2126,8 @@ function updateLDDispatch(id){
   o.lorryNumberOther=lorryVal==='Other'?document.getElementById('d-lorry-remark').value.trim():null;
   o.lorryDisplay=lorryVal==='Other'?(document.getElementById('d-lorry-remark').value.trim()||'Other'):lorryVal;
   const mBefore=document.getElementById('d-mileage-before').value;
-  const mAfter=document.getElementById('d-mileage-after').value;
   o.mileageBefore=mBefore?parseFloat(mBefore):null;
-  o.mileageAfter=mAfter?parseFloat(mAfter):null;
-  o.mileageTotal=(mBefore&&mAfter&&parseFloat(mAfter)>parseFloat(mBefore))?parseFloat(mAfter)-parseFloat(mBefore):null;
+  // mileage after filled at delivery
   o.dispatchedDate=myDate();
   o.dispatchedTime=myTime();
   saveDB(o);
@@ -2014,12 +2142,13 @@ function updateLD(id, markDelivered){
     o.deliveredDate=myDate();
     o.deliveredTime=myTime();
     if(!o.pickingDone) o.pickingDone=myDate();
-    // update mileage after if filled
-    const mAfterD=document.getElementById('d-mileage-after');
-    if(mAfterD&&mAfterD.value){
-      o.mileageAfter=parseFloat(mAfterD.value);
-      if(o.mileageBefore) o.mileageTotal=o.mileageAfter-o.mileageBefore;
-    }
+  }
+  // Save mileage after
+  const mAfterEl=document.getElementById('d-mileage-after');
+  if(mAfterEl&&mAfterEl.value){
+    o.mileageAfter=parseFloat(mAfterEl.value);
+    if(o.mileageBefore&&o.mileageAfter>o.mileageBefore)
+      o.mileageTotal=o.mileageAfter-o.mileageBefore;
   }
   o.deliveryError=document.getElementById('d-err').value;
   o.deliveryErrorNote=document.getElementById('d-errnote').value.trim();
