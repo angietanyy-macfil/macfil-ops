@@ -925,11 +925,11 @@ function renderDashboard(){
   const todaySection=(title,icon,orders,color,detailFn)=>orders.length===0?'':
     `<div style="background:${color}18;border-radius:8px;padding:8px 10px">
       <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${icon} ${title} (${orders.length})</div>
-      ${orders.slice(0,3).map(o=>`<div style="font-size:11px;color:var(--grey-700);padding:2px 0;display:flex;justify-content:space-between;gap:6px">
+      ${orders.map(o=>`<div style="font-size:11px;color:var(--grey-700);padding:2px 0">
         <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy);font-size:11px">${esc(o.soNum)}</span>
-        <span style="color:${color};font-size:11px">${detailFn(o)}</span>
+        <span style="color:var(--grey-600);font-size:11px;margin-left:4px">${esc(o.customer)}</span>
+        <span style="color:${color};font-size:11px;float:right">${detailFn(o)}</span>
       </div>`).join('')}
-      ${orders.length>3?`<div style="font-size:10px;color:var(--grey-400);margin-top:2px">+${orders.length-3} more</div>`:''}
     </div>`;
 
   // Calendar
@@ -976,13 +976,13 @@ function renderDashboard(){
 
   // Pending delivery grouped
   const stageGroups=[
-    {key:'awaitingGoods',icon:'⏳',label:'Awaiting Goods',color:'var(--purple)',bg:'var(--purple-lt)'},
-    {key:'pendingSK',icon:'📬',label:'Pending SK',color:'var(--amber)',bg:'var(--amber-lt)'},
+    {key:'awaitingGoods',icon:'📬',label:'Pending Goods Receipt / Awaiting Goods',color:'var(--purple)',bg:'var(--purple-lt)'},
+    {key:'pendingSK',icon:'📋',label:'Pending (SK)',color:'var(--amber)',bg:'var(--amber-lt)'},
     {key:'picking',icon:'📦',label:'Picking',color:'var(--blue)',bg:'var(--blue-lt)'},
     {key:'pendingDiscrep',icon:'⚠️',label:'Pending Discrepancy',color:'var(--red)',bg:'var(--red-lt)'},
     {key:'pendingDO',icon:'📄',label:'Pending DO',color:'var(--amber)',bg:'var(--amber-lt)'},
     {key:'ready',icon:'✅',label:'Ready to Ship',color:'var(--teal)',bg:'var(--teal-lt)'},
-    {key:'dispatched',icon:'🚚',label:'Dispatched',color:'var(--blue)',bg:'var(--blue-lt)'},
+    {key:'dispatched',icon:'🚚',label:'Dispatched',color:'var(--navy)',bg:'var(--blue-lt)'},
   ];
 
   const pendingGrouped=stageGroups.map(g=>{
@@ -991,7 +991,13 @@ function renderDashboard(){
     if(!gOrders.length) return '';
     const subInfo=(o)=>{
       const stage=g.key;
-      if(stage==='awaitingGoods'){const u=o.poList?o.poList.filter(p=>!p.grNum).length:0;return`⏳ ${u} PO pending GR`;}
+      if(stage==='awaitingGoods'){
+        const pendPOs=(o.poList||[]).map((p,i)=>({...p,_idx:i})).filter(p=>!p.grNum);
+        return pendPOs.map(p=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-wrap:wrap">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--navy)">${esc(p.poNum)}</span>
+          <button class="btn btn-xs btn-teal" onclick="event.stopPropagation();openSOFromDash('${o.id}',true,${p._idx})" type="button">📥 Key GR</button>
+        </span>`).join('');
+      }
       if(stage==='picking'||stage==='pendingSK') return 'SK: '+esc((o.storeKeepers||[]).join(', ')||'—');
       if(stage==='pendingDO') return 'Waiting for OC to issue DO';
       if(stage==='ready') return 'DO: '+(o.doNum?esc(o.doNum):'—');
@@ -1141,42 +1147,6 @@ function renderDashboard(){
         :pendingGrouped}
     </div>
   </div>
-
-  <!-- 7. Pending GR -->
-  ${pendingGR.length>0?`
-  <div class="card" style="margin-bottom:12px;border:1.5px solid #fde68a">
-    <div class="card-head" style="background:var(--amber-lt)">
-      <span class="card-title" style="color:var(--amber)">📬 Pending Goods Receipt — ${pendingGR.length} SO(s)</span>
-    </div>
-    <div class="card-body" style="padding:0">
-      ${pendingGR.map(o=>{
-        const pendingPOsWithIdx=o.poList.map((p,i)=>({...p,_idx:i})).filter(p=>!p.grNum);
-        const receivedPOs=o.poList.filter(p=>p.grNum);
-        return `<div style="padding:10px 16px;border-bottom:1px solid var(--grey-100)">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-            <div>
-              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--navy)">${esc(o.soNum)}</span>
-              <span style="font-size:12px;color:var(--grey-700);margin-left:6px">${esc(o.customer)}</span>
-              <div style="font-size:11px;color:var(--grey-500);margin-top:2px">SO: ${fmt(o.soDate)}${effectiveReqDate(o)?' · Req: '+fmt(effectiveReqDate(o)):''}</div>
-            </div>
-            <div style="text-align:right">
-              <span class="badge badge-amber">${pendingPOsWithIdx.length} PO pending GR</span>
-              ${receivedPOs.length?`<div style="font-size:10px;color:var(--green);margin-top:3px">${receivedPOs.length} received</div>`:''}
-            </div>
-          </div>
-          ${pendingPOsWithIdx.map(p=>`
-          <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;gap:8px;margin-bottom:3px">
-            <div style="flex:1;min-width:0">
-              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--navy)">${esc(p.poNum)}</span>
-              <span style="font-size:11px;color:var(--grey-500);margin-left:6px">${esc(p.supplier||'—')}</span>
-              ${p.expectedDate?`<div style="font-size:10px;color:var(--amber);font-weight:600;margin-top:2px">📅 Exp: ${fmt(p.expectedDate)}</div>`:'<div style="font-size:10px;color:var(--grey-400);margin-top:2px">No expected date</div>'}
-            </div>
-            <button class="btn btn-xs btn-teal" onclick="openSOFromDash('${o.id}',true,${p._idx})" type="button">📥 Key GR</button>
-          </div>`).join('')}
-        </div>`;
-      }).join('')}
-    </div>
-  </div>`:''}
 
   <!-- 8. Pending Discrepancy -->
   ${discrepOrders.length>0?`
@@ -1918,23 +1888,10 @@ function openSO(id){
         <div class="form-row">
           <div class="fg">
             <label>Mileage Before (KM) <span style="font-size:10px;color:var(--grey-400)">Fill before departure</span></label>
-            <input type="number" id="d-mileage-before" placeholder="e.g. 12450" value="${o.mileageBefore||''}" ${o.dispatchedDate?'':''}">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="fg">
-            <label>Mileage Before (KM)</label>
             <input type="number" id="d-mileage-before" placeholder="e.g. 12450" value="${o.mileageBefore||''}">
           </div>
-          <div class="fg">
-            <label>Mileage After (KM)</label>
-            <input type="number" id="d-mileage-after" placeholder="e.g. 12580" value="${o.mileageAfter||''}">
-          </div>
-          <div class="fg">
-            <label>Total KM (Auto)</label>
-            <input type="number" id="d-mileage-total" placeholder="Auto calculated" value="${o.mileageBefore&&o.mileageAfter?o.mileageAfter-o.mileageBefore:''}" readonly style="background:var(--grey-50);color:var(--grey-500)">
-          </div>
         </div>
+        ${o.dispatchedDate?`<button class="btn btn-sm btn-ghost" onclick="saveMileageBefore('${id}')" type="button" style="margin-bottom:8px">💾 Save Mileage Before</button>`:''}
         ${o.dispatchedDate
           ?`<div style="background:var(--blue-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--blue);font-weight:600">🚚 Dispatched on ${fmt(o.dispatchedDate)} at ${o.dispatchedTime||'—'} (Malaysia Time)</div>`
           :o.doNum
@@ -1963,7 +1920,7 @@ function openSO(id){
         <div class="form-row">
           <div class="fg">
             <label>Mileage After (KM) <span style="font-size:10px;color:var(--grey-400)">Fill upon arrival</span></label>
-            <input type="number" id="d-mileage-after" placeholder="e.g. 12580" value="${o.mileageAfter||''}" ${!o.dispatchedDate?'disabled':''} oninput="calcTripKM()">
+            <input type="number" id="d-mileage-after" placeholder="e.g. 12580" value="${o.mileageAfter||''}" oninput="calcTripKM()">
           </div>
           <div class="fg">
             <label>Total KM (Auto)</label>
@@ -2072,6 +2029,23 @@ function settleDiscrep(id){
   saveDB(o);showToast('✅ Discrepancy settled — order is now Ready to Ship');
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+function saveMileageBefore(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const val=document.getElementById('d-mileage-before').value;
+  if(!val){showToast('⚠️ Please fill in Mileage Before');return}
+  o.mileageBefore=parseFloat(val);
+  // Update lorry info too
+  const lorryVal=document.getElementById('d-lorry').value;
+  if(lorryVal){
+    o.lorryNumber=lorryVal;
+    o.lorryNumberOther=lorryVal==='Other'?document.getElementById('d-lorry-remark')?.value.trim():null;
+    o.lorryDisplay=lorryVal==='Other'?(document.getElementById('d-lorry-remark')?.value.trim()||'Other'):lorryVal;
+  }
+  o.driverName=document.getElementById('d-driver').value.trim()||o.driverName;
+  saveDB(o);
+  showToast('✅ Mileage Before saved: '+val+' KM');
 }
 
 function calcTripKM(){
@@ -2635,7 +2609,7 @@ function renderKPI(){
   }
 
   if(role==='LD'||role==='MGR'){
-    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName===currentUser.name||o.driverName===currentUser.username):mOrders.filter(o=>o.driverName);
+    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName&&(o.driverName.trim().toLowerCase()===currentUser.name.trim().toLowerCase()||o.driverName.trim().toLowerCase()===(currentUser.username||'').trim().toLowerCase())):mOrders.filter(o=>o.driverName);
     const delivered=dOrders.filter(o=>o.deliveredDate);
     const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
     const noError=delivered.filter(o=>o.deliveryError!=='Yes');
@@ -2643,6 +2617,13 @@ function renderKPI(){
     const accPct=delivered.length?noError.length/delivered.length:null;
     const r3=otPct===null?null:otPct>=0.98?4:otPct>=0.95?3:otPct>=0.90?2:1;
     const r4=accPct===null?null:accPct>=1?4:accPct>=0.98?3:accPct>=0.95?2:1;
+    // Debug: show all delivered orders and their driver names
+    const allDelivered=mOrders.filter(o=>o.deliveredDate);
+    const debugInfo=allDelivered.map(o=>`${o.soNum}: driverName="${o.driverName||'(empty)'}"`).join(' | ');
+    console.log('All delivered this period:', debugInfo);
+    console.log('Current user name:', currentUser.name, 'username:', currentUser.username);
+    console.log('dOrders found:', dOrders.length, 'of', allDelivered.length);
+
     html+=`<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">🚚 Lorry Driver KPIs</div>
     <div style="font-size:12px;color:var(--grey-500);margin-bottom:10px">Based on ${delivered.length} completed deliveries this period</div>
     <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
