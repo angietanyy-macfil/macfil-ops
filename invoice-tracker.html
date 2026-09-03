@@ -325,8 +325,34 @@
 
 
 
+      <!-- Expected Delivery Date -->
+      <div class="field" style="margin-top:4px;">
+        <label>📅 Expected Delivery Date <span style="font-size:10px;color:var(--muted);">(shows in Calendar)</span></label>
+        <input type="date" id="nExpDelivery" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:13px;box-sizing:border-box;">
+      </div>
+
       <div id="nSaveErr" style="font-size:12px;color:var(--bad);min-height:16px;margin:6px 0;"></div>
       <button class="primary" onclick="saveNewPO()" style="background:#5b21b6;">💾 Save PO Record</button>
+    </div>
+
+    <!-- Summary Stats Bar -->
+    <div id="poSummaryBar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+      <div onclick="setPOFilter('active')" style="cursor:pointer;background:var(--card);border:2px solid #c4b5fd;border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:#5b21b6;" id="statTotal">0</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;">All Active</div>
+      </div>
+      <div onclick="setPOFilter('Local')" style="cursor:pointer;background:#ccfbf1;border:2px solid #5eead4;border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:#0f766e;" id="statLocal">0</div>
+        <div style="font-size:10px;color:#0f766e;font-weight:600;">🏠 Local Pending</div>
+      </div>
+      <div onclick="setPOFilter('Overseas')" style="cursor:pointer;background:#dbeafe;border:2px solid #93c5fd;border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:#1d4ed8;" id="statOverseas">0</div>
+        <div style="font-size:10px;color:#1d4ed8;font-weight:600;">✈️ Overseas Pending</div>
+      </div>
+      <div onclick="setPOFilter('done')" style="cursor:pointer;background:#d1fae5;border:2px solid #6ee7b7;border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:#065f46;" id="statDone">0</div>
+        <div style="font-size:10px;color:#065f46;font-weight:600;">✅ Received</div>
+      </div>
     </div>
 
     <!-- PO + Shipment List -->
@@ -335,7 +361,7 @@
         <h2 style="color:#5b21b6;">📋 PO Records</h2>
         <div style="display:flex;gap:5px;flex-wrap:wrap;">
           <button class="ghost" id="fAll"      onclick="setPOFilter('all')"      style="font-size:10px;">All</button>
-          <button class="ghost" id="fActive"   onclick="setPOFilter('active')"   style="font-size:10px;">Active</button>
+          <button class="ghost" id="fActive"   onclick="setPOFilter('active')"   style="font-size:10px;background:#5b21b6;color:#fff;border-color:#5b21b6;">Active</button>
           <button class="ghost" id="fLocal"    onclick="setPOFilter('Local')"    style="font-size:10px;">🏠 Local</button>
           <button class="ghost" id="fOverseas" onclick="setPOFilter('Overseas')" style="font-size:10px;">✈️ Overseas</button>
           <button class="ghost" id="fDone"     onclick="setPOFilter('done')"     style="font-size:10px;">✅ Done</button>
@@ -636,10 +662,12 @@ async function saveNewPO(){
   if(!reqDate){errEl.textContent='Please fill Date Requested.';return;}
   if(!issDate){errEl.textContent='Please click Stamp to record PO issued time.';return;}
 
+  const expDelivery = document.getElementById('nExpDelivery').value||null;
   const procDays=Math.max(0,Math.round((new Date(issDate)-new Date(reqDate))/(864e5)));
   const entry={
     po_num, supplier, type, remarks,
     req_date:reqDate, issued_date:issDate, proc_days:procDays,
+    expected_delivery_date:expDelivery,
     status:'active',
     logged_by:currentUser?currentUser.display_name:'PE',
     created_at:nowMYT_iso(),
@@ -653,7 +681,7 @@ async function saveNewPO(){
   const {error}=await sbClient.from(SHIP_TABLE).insert([entry]);
   if(error){errEl.textContent='❌ Save failed: '+error.message;return;}
   toast('✅ PO record saved!');
-  ['nPONum','nSupplier','nRemarks'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['nPONum','nSupplier','nRemarks','nExpDelivery'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('nIssuedDate').value='';
   document.getElementById('nReqDate').value='';
   const nit=document.getElementById('nIssuedTime');if(nit)nit.textContent='';
@@ -689,8 +717,12 @@ function setPOFilter(f){
     el.style.background=''; el.style.color=''; el.style.borderColor='';
   });
   const map={all:'fAll',active:'fActive',Local:'fLocal',Overseas:'fOverseas',done:'fDone'};
-  const el=document.getElementById(map[f]); if(el){el.style.background='#5b21b6';el.style.color='#fff';el.style.borderColor='#5b21b6';}
+  const el=document.getElementById(map[f]);
+  if(el){el.style.background='#5b21b6';el.style.color='#fff';el.style.borderColor='#5b21b6';}
   renderPOCards();
+  // scroll to list
+  const listEl=document.getElementById('poList');
+  if(listEl) setTimeout(()=>listEl.scrollIntoView({behavior:'smooth',block:'start'}),100);
 }
 function setShipFilter(f){
   shipFilter=f;
@@ -823,12 +855,13 @@ function poCardHTML(r, readOnly){
       <textarea rows="2" style="width:100%;border:1px solid #c4b5fd;border-radius:6px;padding:6px 8px;font-size:11px;resize:vertical;box-sizing:border-box;" placeholder="Add follow-up note…" onblur="updateRec('${r.id}',{mgr_comment:this.value.trim()||null})">${escapeHtml(r.mgr_comment||'')}</textarea>
     </div>` : (r.mgr_comment?`<div style="margin-top:6px;padding:5px 8px;background:#ede9fe;border-radius:6px;font-size:11px;color:#5b21b6;">👔 ${escapeHtml(r.mgr_comment)}</div>`:'');
 
-  return `<div style="border:1px solid ${isDone?'#86efac':tColor+'55'};border-radius:10px;padding:12px;margin-bottom:12px;background:${isDone?'#f0fdf4':'var(--card)'};">
+  return `<div data-po-id="${r.id}" style="border:1px solid ${isDone?'#86efac':tColor+'55'};border-radius:10px;padding:12px;margin-bottom:12px;background:${isDone?'#f0fdf4':'var(--card)'};">
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
       <div>
         <div style="font-family:monospace;font-weight:800;font-size:14px;">${escapeHtml(r.po_num||'—')}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(r.supplier||'—')} · ${r.req_date||'—'}${readOnly?' · By: '+escapeHtml(r.logged_by||'—'):''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(r.supplier||'—')} · PO: ${r.req_date||'—'}${readOnly?' · By: '+escapeHtml(r.logged_by||'—'):''}</div>
+        ${r.expected_delivery_date?`<div style="font-size:11px;font-weight:700;color:#7c3aed;margin-top:2px;">📦 Expected Delivery: ${r.expected_delivery_date}</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${tBg};color:${tColor};">${isOV?'✈️ Overseas':'🏠 Local'}</span>
@@ -856,15 +889,57 @@ function poCardHTML(r, readOnly){
 }
 
 /* ── Render PO cards (PE + MGR) ─────────────────────────────── */
+
+/* ── Navigate from Calendar to PO card ─────────────────────── */
+function navigateFromCal(date, targetId){
+  // Switch to PO+Shipment tab
+  switchPETab('log');
+  setPOFilter('all');
+  // After render, scroll to and highlight the PO
+  setTimeout(()=>{
+    let cardEl = null;
+    if(targetId){
+      // Find by data-id attribute
+      cardEl = document.querySelector(`[data-po-id="${targetId}"]`);
+    }
+    if(!cardEl && date){
+      // Fallback: find by date text
+      cardEl = document.querySelector(`[data-po-id]`);
+    }
+    if(cardEl){
+      cardEl.scrollIntoView({behavior:'smooth', block:'center'});
+      // Flash highlight
+      const orig = cardEl.style.boxShadow;
+      cardEl.style.boxShadow = '0 0 0 3px #5b21b6';
+      cardEl.style.transition = 'box-shadow .3s';
+      setTimeout(()=>{ cardEl.style.boxShadow = orig; }, 2500);
+    }
+  }, 300);
+}
+
+function isDone(r){ return r.status==='received'||!!r.local_received_date||!!r.ov_received_date; }
+function isPending(r){ return !isDone(r); }
+
+function updateSummaryStats(){
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  const pending=poRecords.filter(isPending);
+  set('statTotal', pending.length);
+  set('statLocal', pending.filter(r=>r.type==='Local').length);
+  set('statOverseas', pending.filter(r=>r.type==='Overseas').length);
+  set('statDone', poRecords.filter(isDone).length);
+}
+
 function renderPOCards(){
+  updateSummaryStats();
   const term=(document.getElementById('poSearch')?.value||'').toLowerCase();
   const mgrTerm=(document.getElementById('mgrPOSearch')?.value||'').toLowerCase();
 
   let recs=poRecords;
   // PE filter
-  if(poFilter==='active') recs=recs.filter(r=>r.status!=='received'&&!r.local_received_date&&!r.ov_received_date);
-  else if(poFilter==='done') recs=recs.filter(r=>r.status==='received'||r.local_received_date||r.ov_received_date);
-  else if(poFilter==='Local'||poFilter==='Overseas') recs=recs.filter(r=>r.type===poFilter);
+  if(poFilter==='active') recs=recs.filter(isPending);
+  else if(poFilter==='done') recs=recs.filter(isDone);
+  else if(poFilter==='Local') recs=recs.filter(r=>r.type==='Local'&&isPending(r));
+  else if(poFilter==='Overseas') recs=recs.filter(r=>r.type==='Overseas'&&isPending(r));
 
   const peList=document.getElementById('poList');
   if(peList){
@@ -1084,20 +1159,21 @@ function renderCalendar(gridId,labelId){
 
   // Build date→events map
   const dateMap={};
-  const addEvent=(date,label,color,po_num)=>{
+  const addEvent=(date,label,color,po_num,id)=>{
     if(!date||date.slice(0,7)!==`${yr}-${String(mo+1).padStart(2,'0')}`) return;
     if(!dateMap[date]) dateMap[date]=[];
-    dateMap[date].push({label,color,po_num});
+    dateMap[date].push({label,color,po_num,id});
   };
   poRecords.forEach(r=>{
     const tc=r.type==='Overseas'?'#1d4ed8':'#0f766e';
-    [r.local_supplier_delivery_date,r.local_eta].forEach(d=>addEvent(d,'🚚 Del.',tc,r.po_num));
-    if(r.local_received_date) addEvent(r.local_received_date,'✅ Rcvd','#1f7a4d',r.po_num);
-    if(r.ov_etd) addEvent(r.ov_etd,'✈️ ETD','#1d4ed8',r.po_num);
-    if(r.ov_eta) addEvent(r.ov_eta,'🛬 ETA','#1d4ed8',r.po_num);
-    if(r.ov_docs_received) addEvent(r.ov_docs_received,'📄 Docs','#7c3aed',r.po_num);
-    if(r.ov_docs_to_forwarder) addEvent(r.ov_docs_to_forwarder,'📦 Fwd','#7c3aed',r.po_num);
-    if(r.ov_received_date) addEvent(r.ov_received_date,'✅ Rcvd','#1f7a4d',r.po_num);
+    if(r.expected_delivery_date) addEvent(r.expected_delivery_date,'📦 Expected',r.type==='Overseas'?'#7c3aed':'#0f766e',r.po_num,r.id);
+    [r.local_supplier_delivery_date,r.local_eta].forEach(d=>addEvent(d,'🚚 Del.',tc,r.po_num,r.id));
+    if(r.local_received_date) addEvent(r.local_received_date,'✅ Rcvd','#1f7a4d',r.po_num,r.id);
+    if(r.ov_etd) addEvent(r.ov_etd,'✈️ ETD','#1d4ed8',r.po_num,r.id);
+    if(r.ov_eta) addEvent(r.ov_eta,'🛬 ETA','#1d4ed8',r.po_num,r.id);
+    if(r.ov_docs_received) addEvent(r.ov_docs_received,'📄 Docs','#7c3aed',r.po_num,r.id);
+    if(r.ov_docs_to_forwarder) addEvent(r.ov_docs_to_forwarder,'📦 Fwd','#7c3aed',r.po_num,r.id);
+    if(r.ov_received_date) addEvent(r.ov_received_date,'✅ Rcvd','#1f7a4d',r.po_num,r.id);
   });
 
   const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1107,7 +1183,8 @@ function renderCalendar(gridId,labelId){
     const ds=iso(d);
     const isToday=ds===todayStr;
     const dots=dateMap[ds]||[];
-    g+=`<div style="min-height:50px;border:1px solid ${isToday?'#5b21b6':'var(--line)'};border-radius:6px;padding:3px;background:${isToday?'#faf5ff':'var(--card)'};">
+    const clickable=dots.length>0;
+    g+=`<div style="min-height:50px;border:1px solid ${isToday?'#5b21b6':'var(--line)'};border-radius:6px;padding:3px;background:${isToday?'#faf5ff':'var(--card)'};cursor:${clickable?'pointer':'default'};" ${clickable?`onclick="navigateFromCal('${ds}')"`:''}">
       <div style="font-size:11px;font-weight:${isToday?'800':'600'};color:${isToday?'#5b21b6':'var(--navy)'};">${d}</div>
       ${dots.slice(0,2).map(e=>`<div style="font-size:8px;font-weight:700;padding:1px 2px;border-radius:3px;background:${e.color}22;color:${e.color};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.label}</div>`).join('')}
       ${dots.length>2?`<div style="font-size:8px;color:var(--muted);">+${dots.length-2}</div>`:''}
@@ -1124,7 +1201,11 @@ function renderCalendar(gridId,labelId){
     const isToday=date===todayStr;
     return `<div style="padding:8px 12px;border:1px solid ${isToday?'#c4b5fd':'var(--line)'};border-radius:8px;margin-bottom:6px;background:${isToday?'#faf5ff':'var(--card)'};">
       <div style="font-size:11px;font-weight:700;color:${isToday?'#5b21b6':'var(--navy)'};margin-bottom:4px;">${date}${isToday?' 📅 TODAY':''}</div>
-      ${evs.map(e=>`<div style="font-size:11px;color:${e.color};font-weight:600;">${e.label} — <span style="font-family:monospace;">${e.po_num||''}</span></div>`).join('')}
+      ${evs.map(e=>`<div onclick="navigateFromCal('${date}','${e.id}')" style="font-size:11px;color:${e.color};font-weight:600;cursor:pointer;padding:3px 0;display:flex;align-items:center;gap:6px;">
+        <span>${e.label}</span>
+        <span style="font-family:monospace;background:${e.color}15;padding:1px 6px;border-radius:5px;">${e.po_num||''}</span>
+        <span style="font-size:9px;color:var(--muted);">→ View PO</span>
+      </div>`).join('')}
     </div>`;
   }).join('');
 }
