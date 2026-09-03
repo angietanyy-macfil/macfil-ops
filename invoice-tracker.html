@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
-<title>Invoice Portal Submission Tracker | MACFIL</title>
+<title>MACFIL Operations & Purchasing Tracker</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
@@ -113,13 +113,34 @@
   .q-bar-fill.rnone{background:#c7cdd6;}
   .q-meta{width:60px; text-align:right; font-size:11px; color:var(--muted); flex-shrink:0;}
 
+  /* ── PE additions ── */
+  .tab-bar{display:flex;gap:2px;background:#eef1f5;border-radius:10px;padding:3px;margin-bottom:16px;}
+  .tab-bar button{flex:1;border:none;background:transparent;border-radius:8px;padding:8px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted);transition:all .15s;}
+  .tab-bar button.active{background:#fff;color:var(--navy);box-shadow:0 1px 4px rgba(0,0,0,.1);}
+  .pe-box{background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px;margin:10px 0;}
+  .pe-box .pe-lbl{font-size:11px;font-weight:700;color:#5b21b6;margin-bottom:6px;}
+  .acc-box{background:#ccfbf1;border:1px solid #5eead4;border-radius:8px;padding:10px 14px;margin:10px 0;}
+  .acc-box .pe-lbl{font-size:11px;font-weight:700;color:#0f766e;margin-bottom:6px;}
+  .po-item{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;}
+  .po-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .po-num{font-weight:800;font-size:14px;font-family:monospace;}
+  .po-sup{font-size:12px;color:var(--muted);margin-top:2px;}
+  .po-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+  .badge.r4{background:var(--ok-bg);color:var(--ok);}
+  .badge.r3{background:#dbeafe;color:#1d4ed8;}
+  .badge.r2{background:var(--warn-bg);color:var(--warn);}
+  .badge.r1{background:var(--bad-bg);color:var(--bad);}
+  .preview-line{font-size:11px;font-weight:700;margin-top:6px;min-height:16px;color:var(--muted);}
+  .pe-card{background:var(--card);border:1px solid #c4b5fd;border-radius:12px;padding:16px;margin-bottom:16px;}
+  .pe-card h2{margin:0 0 12px;font-size:15px;color:#5b21b6;}
+
 </style>
 </head>
 <body>
 
 <div id="loginGate">
   <div class="lg-brand">MACFIL SDN BHD</div>
-  <h1>Invoice Portal Submission Tracker</h1>
+  <h1>MACFIL Operations & Purchasing Tracker</h1>
   <p>Log in to continue.</p>
   <div class="login-box">
     <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
@@ -138,14 +159,14 @@
     <button onclick="logout()">Switch Role</button>
   </div>
   <div class="rating-chip"><div class="num" id="ratingNum">–</div><div class="lbl">Rating</div></div>
-  <div class="brand">MACFIL SDN BHD · Operations Executive KPI</div>
-  <h1>Invoice Submission to Customer Portal</h1>
-  <p>Only invoices that go through a customer portal are logged here. Submit on the invoice date, follow up until the portal shows Success. If the customer requires a report, it must be submitted and approved before the portal confirms. Weight: 20% · Accumulative.</p>
+  <div class="brand">MACFIL SDN BHD · KPI Tracker</div>
+  <h1 id="hTitle">KPI Tracker</h1>
+  <p id="hDesc"></p>
 </header>
 
 <main>
 
-  <div class="banner">📌 Only log invoices that require portal submission — not every customer needs this.</div>
+  <div class="banner" id="oeBanner">📌 Only log invoices that require portal submission — not every customer needs this.</div>
 
   <div class="userbar" id="ocUserbar">
     <label>Logged in as</label>
@@ -176,7 +197,8 @@
       <div class="field">
         <label>Role</label>
         <select id="newUserRole" style="border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px;">
-          <option value="OC">Operations Executive</option>
+          <option value="OC">Operations Executive (OE)</option>
+          <option value="PE">Purchasing Executive</option>
           <option value="MGR">Manager</option>
         </select>
       </div>
@@ -184,8 +206,8 @@
     <button class="primary" onclick="handleAddUser()">+ Add User</button>
   </div>
 
-  <details class="rule-box">
-    <summary>Rating rubric (tap to view)</summary>
+  <details class="rule-box" id="oeRubric">
+    <summary>Rating rubric — Operations Executive (tap to view)</summary>
     <table class="rule-table">
       <tr><td>100% submitted &amp; followed up; 0 rejections outstanding</td><td>4</td></tr>
       <tr><td>95–99% submitted on time; all rejections settled within 2 days</td><td>3</td></tr>
@@ -223,6 +245,262 @@
   <div id="invList"></div>
   <div class="empty" id="emptyState" style="display:none;">No invoices logged yet. Add one above to get started.</div>
 
+  <!-- MGR tab bar -->
+  <!-- MGR tab bar -->
+  <div class="tab-bar" id="mgrTabBar" style="display:none;">
+    <button id="tabOC" class="active" onclick="switchMgrTab('OC')">📋 Invoice KPI (OE)</button>
+    <button id="tabPE" onclick="switchMgrTab('PE')">🛒 PO KPI (PE)</button>
+    <button id="tabShip" onclick="switchMgrTab('SHIP')">🚢 Shipment Follow-Up</button>
+  </div>
+
+  <!-- PE sub-nav (only visible when PE user logs in) -->
+  <div class="tab-bar" id="peNavBar" style="display:none;">
+    <button id="peTab1" class="active" onclick="switchPETab('log')">🛒 PO Log</button>
+    <button id="peTab2" onclick="switchPETab('ship')">🚢 Shipment</button>
+    <button id="peTab3" onclick="switchPETab('calendar')">📅 Calendar</button>
+  </div>
+
+  <!-- PE: Log new PO -->
+  <div class="card" id="peAddCard" style="display:none;">
+    <h2 style="color:#5b21b6;">🛒 Log New PO</h2>
+    <div class="banner" style="background:#ede9fe;border-color:#c4b5fd;color:#5b21b6;margin-bottom:12px;">
+      📌 Log every PO you issue. Fill Request Date &amp; PO Issued Date — processing days and rating auto-calculate.
+    </div>
+    <details class="rule-box" style="margin-bottom:12px;">
+      <summary>Rating rubric — Processing Time &amp; Accuracy (tap to view)</summary>
+      <table class="rule-table"><caption style="text-align:left;font-size:11px;color:var(--muted);padding-bottom:4px;">KPI 1 — Processing Time (40% weight)</caption>
+        <tr><td>≥95% of POs issued within 1 business day</td><td>4</td></tr>
+        <tr><td>90–94% within 1 business day</td><td>3</td></tr>
+        <tr><td>80–89% within 1 business day</td><td>2</td></tr>
+        <tr><td>&lt;80% within 1 business day</td><td>1</td></tr>
+      </table>
+      <table class="rule-table" style="margin-top:10px;"><caption style="text-align:left;font-size:11px;color:var(--muted);padding-bottom:4px;">KPI 2 — PO Accuracy Rate</caption>
+        <tr><td>≥99% POs with no errors</td><td>4</td></tr>
+        <tr><td>96–98% with no errors</td><td>3</td></tr>
+        <tr><td>90–95% with no errors</td><td>2</td></tr>
+        <tr><td>&lt;90% with no errors</td><td>1</td></tr>
+      </table>
+    </details>
+    <div class="summary-grid" style="margin-bottom:14px;">
+      <div class="stat"><div class="v" id="peTotal">0</div><div class="k">POs Logged</div></div>
+      <div class="stat good"><div class="v" id="peOnTimePct">—</div><div class="k">On-Time Rate (≤1 day)</div></div>
+      <div class="stat good"><div class="v" id="peAccPct">—</div><div class="k">Accuracy Rate</div></div>
+      <div class="stat"><div class="v" id="peRating">—</div><div class="k">Overall Rating</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>PO Date *</label><input type="date" id="peDate"></div>
+      <div class="field"><label>PO Number *</label><input type="text" id="pePONum" placeholder="e.g. PO-2604-001"></div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Supplier *</label>
+        <input type="text" id="peSupplier" placeholder="Supplier name" list="peSupList">
+        <datalist id="peSupList">
+          <option value="ELEKTRA MOTOR (M) SDN BHD">
+          <option value="FE AUTOMATION SDN. BHD.">
+          <option value="HUGEMEC INDUSTRIES SDN BHD">
+          <option value="SEW-EURODRIVE SDN BHD- JB">
+          <option value="SLS (JOHOR BAHRU) SDN BHD">
+          <option value="T.E.M ENGINEERING GROUP SDN BHD">
+          <option value="TPM INDUSTRIAL SUPPLIES SDN BHD">
+          <option value="WONDER SOUTH EAST ASIA SDN BHD">
+        </datalist>
+      </div>
+      <div class="field"><label>Item Description</label><input type="text" id="peItem" placeholder="e.g. 0.75kW Motor IE2"></div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Expected Delivery Date</label>
+        <input type="date" id="peDelivery1" placeholder="">
+      </div>
+      <div class="field">
+        <label>Revised Delivery Date 1 <span style="font-size:10px;color:var(--muted);">(if changed)</span></label>
+        <input type="date" id="peDelivery2">
+      </div>
+    </div>
+    <div class="field-row" style="margin-bottom:4px;">
+      <div class="field">
+        <label>Revised Delivery Date 2 <span style="font-size:10px;color:var(--muted);">(if changed again)</span></label>
+        <input type="date" id="peDelivery3">
+      </div>
+      <div class="field">
+        <label>Actual Delivery Date <span style="font-size:10px;color:var(--muted);">(fill when received)</span></label>
+        <input type="date" id="peActualDelivery">
+      </div>
+    </div>
+
+    <div class="pe-box">
+      <div class="pe-lbl">⏱ KPI 1 — PO Processing Time</div>
+      <div class="field-row" style="margin-bottom:4px;">
+        <div class="field">
+          <label>Date Requested *</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="date" id="peReqDate" oninput="pePreview()" style="flex:1;">
+            <button type="button" onclick="stampReqDate()" style="background:#3d5a80;color:#fff;border:none;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">📅 Today</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Date PO Issued *</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="date" id="peIssued" readonly style="flex:1;background:#f4f6f9;color:#1b2430;font-weight:600;">
+            <button type="button" onclick="stampIssuedNow()" style="background:#1f7a4d;color:#fff;border:none;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">⏱ Stamp Now</button>
+          </div>
+          <div id="peIssuedTime" style="font-size:10px;color:var(--muted);margin-top:3px;"></div>
+        </div>
+      </div>
+      <div class="preview-line" id="pePreview">Fill Requested Date and click Stamp Now to record PO issuance time</div>
+    </div>
+    <div class="acc-box" style="background:#f0fdf4;border:1px solid #86efac;">
+      <div class="pe-lbl" style="color:#166534;">✅ KPI 2 — PO Accuracy <span style="font-weight:400;font-size:10px;color:#166534;">(Manager fills this after reviewing)</span></div>
+      <div style="font-size:11px;color:#166534;margin-bottom:8px;padding:6px 8px;background:#dcfce7;border-radius:6px;">Default: ✅ No Error. Manager can change to ❌ Has Error after reviewing the PO.</div>
+      <div style="display:flex;gap:20px;margin-bottom:8px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="peErr" value="No" checked> ✅ No Error</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="peErr" value="Yes"> ❌ Has Error</label>
+      </div>
+      <div class="field"><label>Error Description (if any)</label><input type="text" id="peErrDesc" placeholder="e.g. Wrong quantity, wrong supplier, wrong price"></div>
+    </div>
+    <div class="field">
+      <label>Remarks</label>
+      <input type="text" id="peRemarks" placeholder="Optional notes">
+    </div>
+    <div id="peSaveErr" style="font-size:12px;color:var(--bad);min-height:16px;margin-bottom:8px;"></div>
+    <button class="primary" onclick="savePO()" style="background:#5b21b6;">💾 Save PO Entry</button>
+  </div>
+
+  <!-- PE: PO Log list -->
+  <div class="card" id="pePOLog" style="display:none;">
+    <div class="list-head">
+      <h2 style="color:#5b21b6;">📋 PO Log</h2>
+      <span id="pePOCount" style="font-size:11px;color:var(--muted);"></span>
+    </div>
+    <input type="text" id="peSearch" placeholder="🔍 Search PO No. or Supplier…"
+      style="width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px;"
+      oninput="renderPOList()">
+    <div id="pePOList"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- PE: Delivery Dashboard -->
+  <div class="card" id="peDeliveryDash" style="display:none;">
+    <div class="list-head">
+      <h2 style="color:#5b21b6;">📦 Incoming Deliveries</h2>
+      <div style="display:flex;gap:6px;">
+        <button id="dashWeekBtn" class="ghost" onclick="showDeliveryTab('week')" style="font-size:11px;font-weight:700;background:#5b21b6;color:#fff;border-color:#5b21b6;">This Week</button>
+        <button id="dashMonthBtn" class="ghost" onclick="showDeliveryTab('month')" style="font-size:11px;">This Month</button>
+        <button id="dashNextBtn" class="ghost" onclick="showDeliveryTab('next')" style="font-size:11px;">Next Month</button>
+      </div>
+    </div>
+    <div id="deliveryDashContent"></div>
+  </div>
+
+
+  <!-- ══════ SHIPMENT FOLLOW-UP (PE + MGR) ══════ -->
+  <div id="shipmentSection" style="display:none;">
+
+    <!-- Add new shipment -->
+    <div class="card" id="shipAddCard">
+      <h2 style="color:#0f766e;">🚢 Add New Shipment to Track</h2>
+      <div class="banner" style="background:#ccfbf1;border-color:#5eead4;color:#0f766e;margin-bottom:12px;">
+        📌 Create one shipment record per PO. Choose Local or Overseas — the follow-up steps will be different.
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>PO Number *</label><input type="text" id="shPONum" placeholder="e.g. M/PO-2608-001"></div>
+        <div class="field"><label>Supplier *</label>
+          <input type="text" id="shSupplier" placeholder="Supplier name" list="shSupList">
+          <datalist id="shSupList">
+            <option value="ELEKTRA MOTOR (M) SDN BHD">
+            <option value="FE AUTOMATION SDN. BHD.">
+            <option value="HUGEMEC INDUSTRIES SDN BHD">
+            <option value="SEW-EURODRIVE SDN BHD- JB">
+            <option value="SLS (JOHOR BAHRU) SDN BHD">
+            <option value="T.E.M ENGINEERING GROUP SDN BHD">
+            <option value="TPM INDUSTRIAL SUPPLIES SDN BHD">
+            <option value="WONDER SOUTH EAST ASIA SDN BHD">
+          </datalist>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Item Description</label><input type="text" id="shItem" placeholder="e.g. 0.75kW Motor IE2 x 10 units"></div>
+        <div class="field"><label>PO Confirmed Date *</label><input type="date" id="shPODate"></div>
+      </div>
+      <div class="field">
+        <label>Shipment Type *</label>
+        <div style="display:flex;gap:16px;margin-top:4px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:8px 14px;border:2px solid #0f766e;border-radius:8px;background:#ccfbf1;">
+            <input type="radio" name="shType" value="Local" checked onchange="toggleShipType()"> 🏠 Local
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:8px 14px;border:2px solid #1d4ed8;border-radius:8px;background:#dbeafe;">
+            <input type="radio" name="shType" value="Overseas" onchange="toggleShipType()"> ✈️ Overseas
+          </label>
+        </div>
+      </div>
+      <div class="field"><label>Remarks / Notes</label><input type="text" id="shRemarks" placeholder="Optional notes"></div>
+      <div id="shSaveErr" style="font-size:12px;color:var(--bad);min-height:16px;margin-bottom:8px;"></div>
+      <button class="primary" onclick="saveShipment()" style="background:#0f766e;">🚢 Create Shipment Record</button>
+    </div>
+
+    <!-- Shipment list -->
+    <div class="card" id="shipListCard">
+      <div class="list-head">
+        <h2 style="color:#0f766e;">📋 Active Shipments</h2>
+        <div style="display:flex;gap:6px;">
+          <button class="ghost" id="shFilterAll" onclick="filterShipments('all')" style="font-size:11px;background:#0f766e;color:#fff;border-color:#0f766e;">All</button>
+          <button class="ghost" id="shFilterLocal" onclick="filterShipments('Local')" style="font-size:11px;">🏠 Local</button>
+          <button class="ghost" id="shFilterOverseas" onclick="filterShipments('Overseas')" style="font-size:11px;">✈️ Overseas</button>
+          <button class="ghost" id="shFilterDone" onclick="filterShipments('done')" style="font-size:11px;">✅ Received</button>
+        </div>
+      </div>
+      <div id="shipList"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════ CALENDAR VIEW (PE + MGR) ══════ -->
+  <div id="calendarSection" style="display:none;">
+    <div class="card">
+      <div class="list-head">
+        <h2 style="color:#1d4ed8;">📅 3-Month Shipment Calendar</h2>
+        <div style="display:flex;gap:6px;">
+          <button class="ghost" onclick="changeCalMonth(-1)" style="font-size:13px;padding:6px 12px;">‹</button>
+          <span id="calMonthLabel" style="font-size:13px;font-weight:700;color:var(--navy);align-self:center;min-width:100px;text-align:center;"></span>
+          <button class="ghost" onclick="changeCalMonth(1)" style="font-size:13px;padding:6px 12px;">›</button>
+        </div>
+      </div>
+      <div id="calendarGrid"></div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <h2 style="color:#1d4ed8;margin:0 0 12px;">📋 Shipments This Period</h2>
+      <div id="calendarList"></div>
+    </div>
+  </div>
+
+  <!-- MGR: PE report -->
+  <div class="pe-card" id="mgrPECard" style="display:none;">
+    <h2>🛒 Purchasing Executive KPI — Yap Fui Kian</h2>
+    <details class="rule-box" style="margin-bottom:12px;">
+      <summary>Rating rubric — Purchasing Executive (tap to view)</summary>
+      <table class="rule-table"><caption style="text-align:left;font-size:11px;color:var(--muted);padding-bottom:4px;">KPI 1 — PO Processing Time (40% weight)</caption>
+        <tr><td>≥95% of POs issued within 1 business day</td><td>4</td></tr>
+        <tr><td>90–94% issued within 1 business day</td><td>3</td></tr>
+        <tr><td>80–89% issued within 1 business day</td><td>2</td></tr>
+        <tr><td>&lt;80% issued within 1 business day</td><td>1</td></tr>
+      </table>
+      <table class="rule-table" style="margin-top:10px;"><caption style="text-align:left;font-size:11px;color:var(--muted);padding-bottom:4px;">KPI 2 — PO Accuracy Rate</caption>
+        <tr><td>≥99% of POs with no errors (item, qty, price correct)</td><td>4</td></tr>
+        <tr><td>96–98% with no errors</td><td>3</td></tr>
+        <tr><td>90–95% with no errors</td><td>2</td></tr>
+        <tr><td>&lt;90% with no errors</td><td>1</td></tr>
+      </table>
+    </details>
+    <div id="mgrPETrend"></div>
+    <div style="margin-top:14px;">
+      <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:8px;">Full PO Log (Read-only)</div>
+      <input type="text" id="mgrPESearch" placeholder="🔍 Search…"
+        style="width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px;"
+        oninput="renderMgrPOList()">
+      <div id="mgrPOList"><div class="empty">No PO entries yet.</div></div>
+    </div>
+  </div>
+
 </main>
 
 </div><!-- /appContent -->
@@ -250,15 +528,107 @@ let currentRole = null;
 let currentUser = null;
 let users = [];
 
+const PO_TABLE = 'pe_po_log';
+let poEntries = [];
+let mgrTab = 'OC';
+
+function show(id, vis){ const el=document.getElementById(id); if(el) el.style.display=vis; }
+
 function loginAs(role){
   currentRole = role;
-  document.getElementById('loginGate').style.display = 'none';
-  document.getElementById('appContent').style.display = 'block';
-  document.getElementById('ocUserbar').style.display = role === 'OC' ? 'flex' : 'none';
-  document.getElementById('ocAddCard').style.display = role === 'OC' ? 'block' : 'none';
-  document.getElementById('mgrTrendCard').style.display = role === 'MGR' ? 'block' : 'none';
-  document.getElementById('mgrUsersCard').style.display = role === 'MGR' ? 'block' : 'none';
-  loadInvoices();
+  show('loginGate','none');
+  show('appContent','block');
+
+  // Header
+  const H = {
+    OC:  ['Invoice Submission to Customer Portal', 'Only invoices that go through a customer portal are logged here. Submit on the invoice date, follow up until the portal shows Success. Weight: 20% · Accumulative.'],
+    OE:  ['Invoice Submission to Customer Portal', 'Only invoices that go through a customer portal are logged here. Submit on the invoice date, follow up until the portal shows Success. Weight: 20% · Accumulative.'],
+    PE:  ['PO Processing Time & Accuracy — Yap Fui Kian', 'Log every PO you issue. Fill Request Date and PO Issued Date — processing days and KPI rating auto-calculate. Weight: 40% · Accumulative.'],
+    MGR: ['Operations & Purchasing KPI Tracker', 'Manager view — switch tabs to see Invoice KPI (OE) or PO KPI (Purchasing Executive).'],
+  };
+  const hTitle = document.getElementById('hTitle');
+  const hDesc  = document.getElementById('hDesc');
+  if(hTitle) hTitle.textContent = (H[role]||H['OC'])[0];
+  if(hDesc)  hDesc.textContent  = (H[role]||H['OC'])[1];
+
+  const isOC=role==='OC', isPE=role==='PE', isMGR=role==='MGR';
+
+  // OC elements
+  show('ocUserbar',   isOC?'flex':'none');
+  show('ocAddCard',   isOC?'block':'none');
+  show('mgrTrendCard',isMGR||isOC?'block':'none');
+  show('mgrUsersCard',isMGR?'block':'none');
+  show('oeRubric',    isOC||isMGR?'':'none'); // hide OE rubric for PE user
+  show('oeBanner',    isOC||isMGR?'':'none'); // hide OE banner for PE user
+  // PE elements
+  show('peNavBar',       isPE?'flex':'none');
+  show('peAddCard',      isPE?'block':'none');
+  show('pePOLog',        isPE?'block':'none');
+  show('peDeliveryDash', 'none'); // replaced by calendar tab
+  show('shipmentSection','none');
+  show('calendarSection','none');
+  show('mgrPECard',      'none');
+  show('mgrTabBar',      isMGR?'flex':'none');
+  if(isPE){ window._peTab='log'; highlightPETab('log'); }
+  // Summary grid — hide for PE (has its own inside peAddCard)
+  const sg = document.querySelector('.summary-grid');
+  if(sg) sg.style.display = isPE?'none':'grid';
+  // Filter tabs + search — hide for PE
+  const ft = document.getElementById('filterTabs');
+  const sb = document.getElementById('searchBox');
+  const lh = document.querySelector('.list-head');
+  const il = document.getElementById('invList');
+  const es = document.getElementById('emptyState');
+  if(ft) ft.style.display = isPE?'none':'flex';
+  if(sb) sb.style.display = isPE?'none':'block';
+  if(lh) lh.style.display = isPE?'none':'flex';
+  if(il) il.style.display = isPE?'none':'block';
+  if(es) es.style.display = 'none';
+
+  if(isPE){
+    document.getElementById('ratingNum').textContent='–';
+    document.getElementById('peDate').max = todayISO_MY();
+    document.getElementById('peIssued').max = todayISO_MY();
+    loadPOEntries();
+  } else {
+    loadInvoices();
+  }
+  if(isMGR){ mgrTab='OC'; }
+}
+
+function switchMgrTab(tab){
+  mgrTab = tab;
+  ['tabOC','tabPE','tabShip'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.classList.remove('active');
+  });
+  const activeTab = tab==='OC'?'tabOC':tab==='PE'?'tabPE':'tabShip';
+  const atEl = document.getElementById(activeTab); if(atEl) atEl.classList.add('active');
+
+  // Hide everything first
+  const ocEls = ['ocUserbar','mgrTrendCard','mgrUsersCard','filterTabs','searchBox','invList','emptyState','oeRubric','oeBanner'];
+  ocEls.forEach(id => show(id,'none'));
+  const lh = document.querySelector('.list-head'); if(lh) lh.style.display='none';
+  const sg = document.querySelector('.summary-grid'); if(sg) sg.style.display='none';
+  show('mgrPECard',       'none');
+  show('peDeliveryDash',  'none');
+  show('shipmentSection', 'none');
+  show('calendarSection', 'none');
+  show('peNavBar',        'none');
+
+  if(tab==='OC'){
+    ocEls.forEach(id => show(id,''));
+    if(lh) lh.style.display='flex';
+    if(sg) sg.style.display='grid';
+    loadInvoices();
+  } else if(tab==='PE'){
+    show('mgrPECard','block');
+    loadPOEntries(); renderMgrPEReport();
+  } else if(tab==='SHIP'){
+    show('shipmentSection','block');
+    show('calendarSection','block');
+    loadShipments();
+    renderCalendar();
+  }
 }
 function logout(){
   currentRole = null; currentUser = null;
@@ -290,8 +660,11 @@ async function attemptLogin(){
     return;
   }
   currentUser = user;
-  document.getElementById('roleLabel').textContent = (user.role==='OC' ? '👷 ' : '🧑‍💼 ') + user.display_name + (user.role==='OC' ? ' — Operations Executive' : ' — Manager');
-  document.getElementById('ownerDisplay').textContent = user.display_name;
+  const roleIcons = {OC:'📋 ', PE:'🛒 ', MGR:'🧑‍💼 '};
+  const roleNames = {OC:' — Operations Executive (OE)', PE:' — Purchasing Executive (PE)', MGR:' — Manager'};
+  document.getElementById('roleLabel').textContent = (roleIcons[user.role]||'') + user.display_name + (roleNames[user.role]||'');
+  const od = document.getElementById('ownerDisplay');
+  if(od) od.textContent = user.display_name;
   loginAs(user.role);
 }
 
@@ -338,7 +711,7 @@ function renderUsersList(){
       <div class="inv-top">
         <div>
           <div class="inv-no">${escapeHtml(u.display_name || u.username)}</div>
-          <div class="inv-cust">@${escapeHtml(u.username)} · ${u.role === 'OC' ? 'Operations Executive' : 'Manager'}</div>
+          <div class="inv-cust">@${escapeHtml(u.username)} · ${u.role==='OC'?'Operations Executive (OE)':u.role==='PE'?'Purchasing Executive (PE)':'Manager'}</div>
         </div>
         <span class="badge ${u.active ? 'ontime' : 'overdue'}">${u.active ? 'Active' : 'Disabled'}</span>
       </div>
@@ -645,6 +1018,837 @@ function render(){
   });
 }
 
+
+/* ═══════════════════════════════════════════════
+   PE — PURCHASING EXECUTIVE FUNCTIONS
+   ═══════════════════════════════════════════════ */
+
+async function loadPOEntries(){
+  if(!sbClient) return;
+  const { data, error } = await sbClient.from(PO_TABLE).select('*').order('po_date',{ascending:false});
+  if(error){ console.error(error); toast('Failed to load PO log'); return; }
+  poEntries = data || [];
+  renderPOList();
+  renderPESummary();
+  if(document.getElementById('deliveryDashContent')) renderDeliveryDash(currentDeliveryTab);
+  if(currentRole==='MGR') renderMgrPEReport();
+}
+
+function stampReqDate(){
+  document.getElementById('peReqDate').value = todayISO_MY();
+  pePreview();
+}
+
+function stampIssuedNow(){
+  const d = todayISO_MY();
+  document.getElementById('peIssued').value = d;
+  // Show Malaysia date+time
+  const timeStr = new Date().toLocaleTimeString('en-MY',{timeZone:'Asia/Kuala_Lumpur',hour:'2-digit',minute:'2-digit',hour12:true});
+  const el = document.getElementById('peIssuedTime');
+  if(el) el.textContent = '⏱ Stamped: '+d+' '+timeStr+' MYT';
+  pePreview();
+}
+
+function pePreview(){
+  const r = document.getElementById('peReqDate').value;
+  const i = document.getElementById('peIssued').value;
+  const el = document.getElementById('pePreview');
+  if(!el) return;
+  if(r && i){
+    const days = Math.max(0, Math.round((new Date(i)-new Date(r))/(1000*60*60*24)));
+    const [rat,col] = days<=1?[4,'var(--ok)']:days<=2?[3,'#1d4ed8']:days<=3?[2,'var(--warn)']:[1,'var(--bad)'];
+    const lbl = ['','Below Expectation','Meeting Expectation','Above Expectation','Outstanding'];
+    el.innerHTML = `<span style="color:${col};">Processing: ${days} day(s) → Rating ${rat} · ${lbl[rat]}</span>`;
+  } else {
+    el.textContent = 'Fill Requested Date and click Stamp Now to record PO issuance time';
+  }
+}
+
+async function savePO(){
+  const errEl = document.getElementById('peSaveErr');
+  errEl.textContent = '';
+  const poDate   = document.getElementById('peDate').value;
+  const poNum    = document.getElementById('pePONum').value.trim();
+  const supplier = document.getElementById('peSupplier').value.trim();
+  const item     = document.getElementById('peItem').value.trim();
+  const reqDate  = document.getElementById('peReqDate').value;
+  const issDate  = document.getElementById('peIssued').value;
+  const hasErr   = document.querySelector('input[name="peErr"]:checked')?.value === 'Yes';
+  const errDesc  = document.getElementById('peErrDesc').value.trim();
+  const remarks  = document.getElementById('peRemarks').value.trim();
+  const del1     = document.getElementById('peDelivery1').value;
+  const del2     = document.getElementById('peDelivery2').value;
+  const del3     = document.getElementById('peDelivery3').value;
+  const delAct   = document.getElementById('peActualDelivery').value;
+
+  if(!poDate||!poNum||!supplier){ errEl.textContent='Please fill PO Date, PO Number and Supplier.'; return; }
+  if(!reqDate){ errEl.textContent='Please fill the Date Requested.'; return; }
+  if(!issDate){ errEl.textContent='Please click "Stamp Now" to record PO issuance time.'; return; }
+
+  const procDays = Math.max(0, Math.round((new Date(issDate)-new Date(reqDate))/(1000*60*60*24)));
+  const entry = {
+    po_date: poDate, po_num: poNum, supplier, item_desc: item,
+    req_date: reqDate, issued_date: issDate, proc_days: procDays,
+    has_error: hasErr, error_desc: errDesc, remarks,
+    delivery_date: del1||null,
+    delivery_date_rev1: del2||null,
+    delivery_date_rev2: del3||null,
+    actual_delivery_date: delAct||null,
+    logged_by: currentUser ? currentUser.display_name : 'PE',
+    created_at: nowMY_iso()
+  };
+  const { error } = await sbClient.from(PO_TABLE).insert([entry]);
+  if(error){ errEl.textContent='❌ Save failed: '+error.message; return; }
+  toast('✅ PO entry saved!');
+  ['peDate','pePONum','peSupplier','peItem','peReqDate','peErrDesc','peRemarks','peDelivery1','peDelivery2','peDelivery3','peActualDelivery']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('peIssued').value='';
+  const pit=document.getElementById('peIssuedTime'); if(pit) pit.textContent='';
+  document.querySelector('input[name="peErr"][value="No"]').checked = true;
+  document.getElementById('pePreview').textContent = 'Fill Requested Date and click Stamp Now to record PO issuance time';
+  await loadPOEntries();
+}
+
+async function updatePOError(id, hasError, errDesc){
+  if(!sbClient) return;
+  const { error } = await sbClient.from(PO_TABLE).update({has_error:hasError, error_desc:errDesc}).eq('id',id);
+  if(error){ toast('❌ Update failed: '+error.message); return; }
+  toast(hasError ? '⚠️ Marked as Error' : '✅ Marked as No Error');
+  await loadPOEntries();
+}
+
+async function updateActualDelivery(id, date){
+  if(!sbClient) return;
+  const { error } = await sbClient.from(PO_TABLE).update({actual_delivery_date:date||null}).eq('id',id);
+  if(error){ toast('❌ Update failed: '+error.message); return; }
+  toast('✅ Delivery date updated');
+  await loadPOEntries();
+}
+
+function calcPE(entries){
+  if(!entries||!entries.length) return null;
+  const total=entries.length;
+  const onTime=entries.filter(r=>r.proc_days!==null&&r.proc_days!==undefined&&r.proc_days<=1).length;
+  const acc=entries.filter(r=>!r.has_error).length;
+  const otp=total?onTime/total:null, acp=total?acc/total:null;
+  const r1=otp===null?null:otp>=0.95?4:otp>=0.90?3:otp>=0.80?2:1;
+  const r2=acp===null?null:acp>=0.99?4:acp>=0.96?3:acp>=0.90?2:1;
+  const overall=(r1&&r2)?Math.round((r1+r2)/2):(r1||r2||null);
+  return{total,onTime,acc,otp,acp,r1,r2,overall};
+}
+
+function renderPESummary(){
+  const s=calcPE(poEntries);
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  if(!s){ ['peTotal','peOnTimePct','peAccPct','peRating'].forEach(id=>set(id,'—')); return; }
+  set('peTotal',s.total);
+  set('peOnTimePct', s.otp!==null ? Math.round(s.otp*100)+'%' : '—');
+  set('peAccPct',    s.acp!==null ? Math.round(s.acp*100)+'%' : '—');
+  set('peRating',    s.overall ?? '—');
+  document.getElementById('ratingNum').textContent = s.overall ?? '–';
+}
+
+function rbCls(r){ return r===4?'r4':r===3?'r3':r===2?'r2':'r1'; }
+function rlbl(r){ return['','Below Expectation','Meeting Expectation','Above Expectation','Outstanding'][r]||'—'; }
+
+function poItemHTML(r, readOnly){
+  const d = r.proc_days;
+  const procRat = d===null||d===undefined ? null : d<=1?4:d<=2?3:d<=3?2:1;
+  const accRat  = r.has_error ? 1 : 4;
+  const overallRat = (procRat&&accRat) ? Math.min(procRat,accRat) : (procRat||accRat||null);
+  const ratingLabels = {4:'Outstanding',3:'Above Expectation',2:'Meeting Expectation',1:'Below Expectation'};
+
+  const step1Done = !!r.req_date;
+  const step2Done = !!r.issued_date;
+
+  function stepCircle(num, done, active){
+    const bg  = done ? '#1f7a4d' : active ? '#3d5a80' : '#dfe4ea';
+    const col = done||active ? '#fff' : '#6b7686';
+    return `<div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${col};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;">${done?'✓':num}</div>`;
+  }
+  function stepLine(done){
+    return `<div style="flex:1;height:2px;background:${done?'#1f7a4d':'#dfe4ea'};margin:0 4px;"></div>`;
+  }
+  const ratingColors = {4:'var(--ok)',3:'#1d4ed8',2:'var(--warn)',1:'var(--bad)'};
+
+  // Effective delivery date (rev2 > rev1 > original)
+  const effDelivery = r.delivery_date_rev2 || r.delivery_date_rev1 || r.delivery_date;
+  const deliveryRevised = !!(r.delivery_date_rev1||r.delivery_date_rev2);
+  const isDelivered = !!r.actual_delivery_date;
+
+  // Delivery date status
+  let delivBadge = '';
+  if(effDelivery){
+    const today = todayISO_MY();
+    if(isDelivered){
+      delivBadge = `<span class="badge" style="background:var(--ok-bg);color:var(--ok);">✅ Delivered ${r.actual_delivery_date}</span>`;
+    } else if(effDelivery < today){
+      delivBadge = `<span class="badge" style="background:var(--bad-bg);color:var(--bad);">⚠️ Overdue (Expected ${effDelivery})</span>`;
+    } else if(effDelivery === today){
+      delivBadge = `<span class="badge" style="background:var(--warn-bg);color:var(--warn);">📦 Arriving Today!</span>`;
+    } else {
+      delivBadge = `<span class="badge" style="background:#eef1f5;color:#3d5a80;">🚚 Expected ${effDelivery}${deliveryRevised?' (revised)':''}</span>`;
+    }
+  }
+
+  // Manager error edit controls
+  let mgrErrControls = '';
+  if(!readOnly && currentRole==='MGR'){
+    mgrErrControls = `
+    <div id="errEdit_${r.id}" style="display:none;background:var(--bad-bg);border-radius:8px;padding:10px;margin-top:8px;">
+      <div style="font-size:11px;color:var(--bad);font-weight:700;margin-bottom:6px;">Edit KPI2 Error Status</div>
+      <div style="display:flex;gap:12px;margin-bottom:6px;">
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="errEdit_${r.id}" value="No" ${!r.has_error?'checked':''}> ✅ No Error</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="errEdit_${r.id}" value="Yes" ${r.has_error?'checked':''}> ❌ Has Error</label>
+      </div>
+      <input type="text" id="errDescEdit_${r.id}" value="${(r.error_desc||'').replace(/"/g,'&quot;')}" placeholder="Error description…" style="width:100%;border:1px solid #fca5a5;border-radius:6px;padding:7px 9px;font-size:12px;margin-bottom:6px;">
+      <div style="display:flex;gap:8px;">
+        <button class="ghost" style="font-size:11px;" onclick="(function(){const hasErr=document.querySelector('input[name=\\'errEdit_${r.id}\\']:checked')?.value==='Yes';const desc=document.getElementById('errDescEdit_${r.id}').value.trim();updatePOError('${r.id}',hasErr,desc);document.getElementById('errEdit_${r.id}').style.display='none';})()">Save</button>
+        <button class="ghost" style="font-size:11px;" onclick="document.getElementById('errEdit_${r.id}').style.display='none'">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  // Actual delivery update (readOnly = MGR view, show for both PE and MGR)
+  let delivUpdateCtrl = '';
+  if(!isDelivered && effDelivery){
+    delivUpdateCtrl = `
+    <div style="margin-top:6px;">
+      <button class="ghost" style="font-size:11px;" onclick="(function(){const d=prompt('Enter actual delivery date (YYYY-MM-DD):',todayISO_MY());if(d)updateActualDelivery('${r.id}',d);})()">📦 Mark Received</button>
+    </div>`;
+  }
+
+  return `<div class="po-item">
+    <div class="po-top" style="margin-bottom:10px;">
+      <div>
+        <div class="po-num">${escapeHtml(r.po_num||'—')}</div>
+        <div class="po-sup">${escapeHtml(r.supplier||'—')}${readOnly?' · '+escapeHtml(r.logged_by||'—'):''}</div>
+        ${r.item_desc?`<div class="po-sup" style="color:var(--ink);margin-top:2px;">${escapeHtml(r.item_desc)}</div>`:''}
+      </div>
+      <div class="po-badges">
+        ${overallRat?`<span class="badge ${rbCls(overallRat)}">Rating ${overallRat} · ${ratingLabels[overallRat]||''}</span>`:'<span class="badge" style="background:#eef1f5;color:#6b7686;">In Progress</span>'}
+        ${delivBadge}
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;margin-bottom:12px;">
+      ${stepCircle(1, step1Done, !step1Done)}
+      ${stepLine(step1Done&&step2Done)}
+      ${stepCircle(2, step2Done, step1Done&&!step2Done)}
+      ${stepLine(false)}
+      ${stepCircle(3, isDelivered, step2Done&&!isDelivered)}
+    </div>
+    <div style="display:flex;margin-bottom:10px;">
+      <div style="flex:1;text-align:left;">
+        <div style="font-size:10px;font-weight:700;color:${step1Done?'var(--ok)':'#6b7686'};text-transform:uppercase;letter-spacing:.04em;">Requested</div>
+        <div style="font-size:11px;color:var(--ink);font-weight:600;margin-top:2px;">${r.req_date||'—'}</div>
+      </div>
+      <div style="flex:1;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:${step2Done?'var(--ok)':'#6b7686'};text-transform:uppercase;letter-spacing:.04em;">PO Issued</div>
+        <div style="font-size:11px;color:var(--ink);font-weight:600;margin-top:2px;">${r.issued_date||'—'}</div>
+        ${step1Done&&step2Done&&d!==null?`<div style="font-size:10px;color:${ratingColors[procRat]||'var(--muted)'};font-weight:700;margin-top:2px;">⏱ ${d}d · R${procRat}</div>`:''}
+      </div>
+      <div style="flex:1;text-align:right;">
+        <div style="font-size:10px;font-weight:700;color:${isDelivered?'var(--ok)':'#6b7686'};text-transform:uppercase;letter-spacing:.04em;">Delivered</div>
+        <div style="font-size:11px;color:var(--ink);font-weight:600;margin-top:2px;">${r.actual_delivery_date||'Pending'}</div>
+      </div>
+    </div>
+
+    ${effDelivery?`<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">
+      📅 Expected: <b style="color:var(--ink);">${r.delivery_date||'—'}</b>
+      ${r.delivery_date_rev1?` → Rev1: <b style="color:var(--warn);">${r.delivery_date_rev1}</b>`:''}
+      ${r.delivery_date_rev2?` → Rev2: <b style="color:var(--bad);">${r.delivery_date_rev2}</b>`:''}
+    </div>`:''}
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+      <span class="badge ${rbCls(accRat)}">${r.has_error?'❌ PO Error':'✅ Accurate'}</span>
+      ${r.po_date?`<span style="font-size:11px;color:var(--muted);">PO Date: <b style="color:var(--ink);">${r.po_date}</b></span>`:''}
+      ${currentRole==='MGR'?`<button class="ghost" style="font-size:10px;padding:3px 8px;" onclick="document.getElementById('errEdit_${r.id}').style.display=document.getElementById('errEdit_${r.id}').style.display==='none'?'block':'none'">✏️ Edit KPI2</button>`:''}
+    </div>
+    ${r.error_desc?`<div style="font-size:11px;background:var(--bad-bg);padding:6px 10px;border-radius:6px;color:var(--bad);margin-bottom:4px;">⚠️ ${escapeHtml(r.error_desc)}</div>`:''}
+    ${mgrErrControls}
+    ${delivUpdateCtrl}
+    ${r.remarks?`<div style="font-size:11px;color:var(--muted);padding:4px 0;">📝 ${escapeHtml(r.remarks)}</div>`:''}
+  </div>`;
+}
+
+function renderPOList(){
+  const list=document.getElementById('pePOList');
+  const cntEl=document.getElementById('pePOCount');
+  if(!list) return;
+  const term=(document.getElementById('peSearch')?.value||'').toLowerCase();
+  let entries=poEntries;
+  if(term) entries=entries.filter(r=>(r.po_num||'').toLowerCase().includes(term)||(r.supplier||'').toLowerCase().includes(term));
+  if(cntEl) cntEl.textContent=poEntries.length+' record(s)';
+  list.innerHTML = entries.length ? entries.map(r=>poItemHTML(r,false)).join('') : '<div class="empty">No PO entries yet. Log your first PO above.</div>';
+}
+
+/* ── MGR PE report ── */
+function renderMgrPEReport(){
+  renderMgrPETrend();
+  renderMgrPOList();
+}
+
+function renderMgrPETrend(){
+  const el=document.getElementById('mgrPETrend');
+  if(!el) return;
+  const {fyLabel,quarters}=getCurrentFYQuarters();
+  const barColor=r=>r===4?'var(--ok)':r===3?'#3d8a5c':r===2?'var(--warn)':r===1?'var(--bad)':'#c7cdd6';
+  const bar=(label,r,n)=>{
+    const pct=r?(r/4*100):0;
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div style="width:130px;font-size:11px;color:var(--muted);">${label}</div>
+      <div style="flex:1;background:#eef1f5;border-radius:20px;height:18px;overflow:hidden;">
+        <div style="width:${Math.max(pct,r?10:0)}%;height:100%;background:${barColor(r)};border-radius:20px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;font-weight:800;color:#fff;">${r||''}</div>
+      </div>
+      <div style="width:50px;text-align:right;font-size:11px;color:var(--muted);">${n} POs</div>
+    </div>`;
+  };
+  el.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${fyLabel} · Quarterly Breakdown</div>`
+    + quarters.map(q=>{
+      const inQ=poEntries.filter(r=>r.req_date&&r.req_date>=q.start&&r.req_date<=q.end);
+      const s=calcPE(inQ);
+      return `<div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:#5b21b6;margin-bottom:6px;">${q.label}</div>
+        ${s?bar('⏱ Processing Time',s.r1,s.total)+bar('✅ Accuracy Rate',s.r2,s.total):'<div style="font-size:11px;color:var(--muted);">No PO entries this quarter</div>'}
+        ${s?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">On-time: ${s.onTime}/${s.total} · Errors: ${s.total-s.acc}/${s.total}</div>`:''}
+      </div>`;
+    }).join('');
+}
+
+function renderMgrPOList(){
+  const list=document.getElementById('mgrPOList');
+  if(!list) return;
+  const term=(document.getElementById('mgrPESearch')?.value||'').toLowerCase();
+  let entries=poEntries;
+  if(term) entries=entries.filter(r=>(r.po_num||'').toLowerCase().includes(term)||(r.supplier||'').toLowerCase().includes(term));
+  list.innerHTML=entries.length?entries.map(r=>poItemHTML(r,true)).join(''):'<div class="empty">No PO entries yet.</div>';
+}
+
+
+/* ═══════════════════════════════════════════════
+   DELIVERY DASHBOARD
+   ═══════════════════════════════════════════════ */
+
+let currentDeliveryTab = 'week';
+
+function showDeliveryTab(tab){
+  currentDeliveryTab = tab;
+  ['week','month','next'].forEach(t=>{
+    const btn = document.getElementById('dashWeekBtn'||'dash'+t[0].toUpperCase()+t.slice(1)+'Btn');
+  });
+  const btnIds = {week:'dashWeekBtn', month:'dashMonthBtn', next:'dashNextBtn'};
+  Object.entries(btnIds).forEach(([t,id])=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(t===tab){ el.style.background='#5b21b6'; el.style.color='#fff'; el.style.borderColor='#5b21b6'; }
+    else { el.style.background=''; el.style.color=''; el.style.borderColor=''; }
+  });
+  renderDeliveryDash(tab);
+}
+
+function renderDeliveryDash(tab){
+  const el = document.getElementById('deliveryDashContent');
+  if(!el) return;
+
+  const todayStr = todayISO_MY();
+  const today = new Date(todayStr);
+
+  // Get effective delivery date for a record
+  function effDel(r){ return r.delivery_date_rev2 || r.delivery_date_rev1 || r.delivery_date; }
+
+  // Filter entries that have a delivery date and not yet delivered
+  const pending = poEntries.filter(r => effDel(r));
+
+  if(tab === 'week'){
+    // Mon–Sat of current week
+    const dow = today.getDay(); // 0=Sun
+    const mon = new Date(today); mon.setDate(today.getDate() - (dow===0?6:dow-1));
+    const sat = new Date(mon); sat.setDate(mon.getDate()+5);
+
+    const days = [];
+    for(let i=0;i<6;i++){
+      const d = new Date(mon); d.setDate(mon.getDate()+i);
+      days.push(d.toISOString().slice(0,10));
+    }
+    const dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    let out = `<div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Week of ${mon.toDateString()} — ${sat.toDateString()}</div>`;
+
+    days.forEach((dayStr, idx)=>{
+      const isToday = dayStr === todayStr;
+      const entries = pending.filter(r => effDel(r)===dayStr);
+      const delivered = poEntries.filter(r => r.actual_delivery_date===dayStr);
+      out += `<div style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <div style="font-size:12px;font-weight:700;color:${isToday?'#5b21b6':'var(--navy)'};${isToday?'':''}">
+            ${dayNames[idx]}
+            <span style="font-size:10px;color:var(--muted);font-weight:400;">${dayStr}</span>
+            ${isToday?'<span style="background:#5b21b6;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:4px;">TODAY</span>':''}
+          </div>
+          ${entries.length?`<span style="background:#ede9fe;color:#5b21b6;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">${entries.length} incoming</span>`:''}
+          ${delivered.length?`<span style="background:var(--ok-bg);color:var(--ok);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">${delivered.length} received</span>`:''}
+        </div>`;
+
+      if(!entries.length && !delivered.length){
+        out += `<div style="font-size:11px;color:var(--muted);padding:6px 12px;border-left:2px solid #eef1f5;">No deliveries scheduled</div>`;
+      }
+      entries.forEach(r=>{
+        const revised = !!(r.delivery_date_rev1||r.delivery_date_rev2);
+        out += `<div style="border:1px solid ${isToday?'#c4b5fd':'var(--line)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;background:${isToday?'#faf5ff':'var(--card)'};">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <span style="font-family:monospace;font-weight:800;font-size:13px;">${escapeHtml(r.po_num||'—')}</span>
+              ${revised?'<span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:1px 5px;border-radius:6px;margin-left:4px;">Revised</span>':''}
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(r.supplier||'—')}</div>
+              ${r.item_desc?`<div style="font-size:11px;color:var(--ink);">${escapeHtml(r.item_desc)}</div>`:''}
+            </div>
+            <button class="ghost" style="font-size:10px;padding:4px 8px;" onclick="(function(){const d=prompt('Mark as received on date (YYYY-MM-DD):','${todayStr}');if(d)updateActualDelivery('${r.id}',d);})()">✅ Mark Received</button>
+          </div>
+        </div>`;
+      });
+      delivered.forEach(r=>{
+        out += `<div style="border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:6px;background:#f0fdf4;opacity:0.8;">
+          <span style="font-family:monospace;font-weight:700;font-size:12px;">${escapeHtml(r.po_num||'—')}</span>
+          <span style="font-size:10px;color:var(--ok);margin-left:6px;">✅ Received</span>
+          <div style="font-size:11px;color:var(--muted);">${escapeHtml(r.supplier||'—')}</div>
+        </div>`;
+      });
+      out += `</div>`;
+    });
+    el.innerHTML = out;
+
+  } else {
+    // Month view (this month or next month)
+    const baseDate = new Date(today);
+    if(tab==='next') baseDate.setMonth(baseDate.getMonth()+1);
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const monthName = baseDate.toLocaleString('en-MY',{month:'long',year:'numeric'});
+
+    const inMonth = pending.filter(r=>{
+      const d = effDel(r); if(!d) return false;
+      const dd = new Date(d);
+      return dd.getFullYear()===year && dd.getMonth()===month;
+    });
+
+    const bySupplier = {};
+    inMonth.forEach(r=>{
+      const s = r.supplier||'Unknown';
+      if(!bySupplier[s]) bySupplier[s]=[];
+      bySupplier[s].push(r);
+    });
+
+    let out = `<div style="font-size:11px;color:var(--muted);margin-bottom:12px;">${monthName} · ${inMonth.length} PO(s) expected</div>`;
+
+    if(!inMonth.length){
+      out += `<div class="empty">No deliveries scheduled for ${monthName}</div>`;
+    } else {
+      // Sort by effective delivery date
+      inMonth.sort((a,b)=>(effDel(a)||'').localeCompare(effDel(b)||''));
+      inMonth.forEach(r=>{
+        const d = effDel(r);
+        const revised = !!(r.delivery_date_rev1||r.delivery_date_rev2);
+        const isToday = d===todayStr;
+        out += `<div style="border:1px solid ${isToday?'#c4b5fd':'var(--line)'};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:${isToday?'#faf5ff':'var(--card)'};">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:${isToday?'#5b21b6':'var(--muted)'};margin-bottom:3px;">
+                📅 ${d} ${isToday?'<span style="background:#5b21b6;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;">TODAY</span>':''}
+                ${revised?'<span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:1px 5px;border-radius:6px;margin-left:4px;">Revised</span>':''}
+              </div>
+              <span style="font-family:monospace;font-weight:800;font-size:13px;">${escapeHtml(r.po_num||'—')}</span>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(r.supplier||'—')}</div>
+              ${r.item_desc?`<div style="font-size:11px;color:var(--ink);">${escapeHtml(r.item_desc)}</div>`:''}
+            </div>
+            ${r.actual_delivery_date
+              ? `<span style="font-size:10px;background:var(--ok-bg);color:var(--ok);padding:3px 8px;border-radius:8px;">✅ Received ${r.actual_delivery_date}</span>`
+              : `<button class="ghost" style="font-size:10px;padding:4px 8px;" onclick="(function(){const d=prompt('Mark received (YYYY-MM-DD):','${todayStr}');if(d)updateActualDelivery('${r.id}',d);})()">✅ Mark Received</button>`
+            }
+          </div>
+          ${r.delivery_date_rev1||r.delivery_date_rev2?`<div style="font-size:10px;color:var(--muted);margin-top:6px;">
+            Original: ${r.delivery_date||'—'}
+            ${r.delivery_date_rev1?' → Rev1: '+r.delivery_date_rev1:''}
+            ${r.delivery_date_rev2?' → Rev2: '+r.delivery_date_rev2:''}
+          </div>`:''}
+        </div>`;
+      });
+    }
+    el.innerHTML = out;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   END PE FUNCTIONS
+   ═══════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   SHIPMENT FOLLOW-UP SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+
+const SHIP_TABLE = 'pe_shipments';
+let shipments = [];
+let shipFilter = 'all';
+let calBaseMonth = 0; // offset from current month
+
+// ── PE sub-nav ───────────────────────────────────────────────
+function highlightPETab(tab){
+  ['log','ship','calendar'].forEach(t=>{
+    const btn = document.getElementById('peTab'+(t==='log'?1:t==='ship'?2:3));
+    if(!btn) return;
+    if(t===tab){ btn.style.background='#5b21b6'; btn.style.color='#fff'; }
+    else { btn.style.background=''; btn.style.color=''; }
+  });
+}
+
+function switchPETab(tab){
+  window._peTab = tab;
+  highlightPETab(tab);
+  show('peAddCard',      tab==='log'?'block':'none');
+  show('pePOLog',        tab==='log'?'block':'none');
+  show('shipmentSection',tab==='ship'?'block':'none');
+  show('calendarSection',tab==='calendar'?'block':'none');
+  if(tab==='log')      { loadPOEntries(); }
+  if(tab==='ship')     { loadShipments(); }
+  if(tab==='calendar') { loadShipments(); renderCalendar(); }
+}
+
+// ── Shipment type toggle ──────────────────────────────────────
+function toggleShipType(){ /* no extra UI change needed */ }
+
+// ── Load shipments ───────────────────────────────────────────
+async function loadShipments(){
+  if(!sbClient) return;
+  const { data, error } = await sbClient.from(SHIP_TABLE).select('*').order('created_at',{ascending:false});
+  if(error){ console.error(error); return; }
+  shipments = data || [];
+  renderShipmentList();
+  renderCalendar();
+}
+
+// ── Save new shipment ─────────────────────────────────────────
+async function saveShipment(){
+  const errEl = document.getElementById('shSaveErr');
+  errEl.textContent = '';
+  const po_num   = document.getElementById('shPONum').value.trim();
+  const supplier = document.getElementById('shSupplier').value.trim();
+  const item     = document.getElementById('shItem').value.trim();
+  const po_date  = document.getElementById('shPODate').value;
+  const type     = document.querySelector('input[name="shType"]:checked')?.value || 'Local';
+  const remarks  = document.getElementById('shRemarks').value.trim();
+  if(!po_num || !supplier){ errEl.textContent='Please fill PO Number and Supplier.'; return; }
+  if(!po_date){ errEl.textContent='Please fill PO Confirmed Date.'; return; }
+
+  const entry = {
+    po_num, supplier, item_desc:item, po_date, type, remarks,
+    status: 'active',
+    logged_by: currentUser ? currentUser.display_name : 'PE',
+    created_at: nowMY_iso(),
+    // Local steps
+    local_supplier_delivery_date: null,
+    local_eta: null,
+    local_received_date: null,
+    // Overseas steps
+    ov_can_pickup: null,
+    ov_forwarder: null,
+    ov_req_ship_docs: null,
+    ov_etd: null,
+    ov_eta: null,
+    ov_docs_received: null,
+    ov_docs_to_forwarder: null,
+    ov_received_date: null,
+    // Comments
+    mgr_comment: null,
+  };
+
+  const { error } = await sbClient.from(SHIP_TABLE).insert([entry]);
+  if(error){ errEl.textContent='❌ Save failed: '+error.message; return; }
+  toast('✅ Shipment record created!');
+  ['shPONum','shSupplier','shItem','shPODate','shRemarks'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.querySelector('input[name="shType"][value="Local"]').checked = true;
+  await loadShipments();
+}
+
+// ── Update a single shipment field ───────────────────────────
+async function updateShip(id, fields){
+  if(!sbClient) return;
+  const { error } = await sbClient.from(SHIP_TABLE).update(fields).eq('id',id);
+  if(error){ toast('❌ Update failed: '+error.message); return; }
+  toast('✅ Saved');
+  await loadShipments();
+}
+
+// ── Filter ───────────────────────────────────────────────────
+function filterShipments(f){
+  shipFilter = f;
+  ['All','Local','Overseas','Done'].forEach(t=>{
+    const id = 'shFilter'+(t==='All'?'All':t==='Done'?'Done':t);
+    const el = document.getElementById(id);
+    if(!el) return;
+    const match = (f==='all'&&t==='All')||(f===t)||(f==='done'&&t==='Done');
+    el.style.background = match?'#0f766e':'';
+    el.style.color = match?'#fff':'';
+    el.style.borderColor = match?'#0f766e':'';
+  });
+  renderShipmentList();
+}
+
+// ── Render shipment list ─────────────────────────────────────
+function renderShipmentList(){
+  const el = document.getElementById('shipList');
+  if(!el) return;
+  let list = shipments;
+  if(shipFilter==='Local')    list = list.filter(r=>r.type==='Local');
+  if(shipFilter==='Overseas') list = list.filter(r=>r.type==='Overseas');
+  if(shipFilter==='done')     list = list.filter(r=>r.status==='received');
+  if(shipFilter==='all')      list = list.filter(r=>r.status!=='received');
+  if(!list.length){ el.innerHTML='<div class="empty">No shipments found.</div>'; return; }
+  el.innerHTML = list.map(r=>shipCard(r)).join('');
+}
+
+// ── Ship card HTML ────────────────────────────────────────────
+function shipCard(r){
+  const isOverseas = r.type === 'Overseas';
+  const isDone = r.status === 'received';
+  const isMGR_view = currentRole === 'MGR';
+  const teal='#0f766e', blue='#1d4ed8';
+  const typeColor = isOverseas ? blue : teal;
+  const typeBg   = isOverseas ? '#dbeafe' : '#ccfbf1';
+
+  // Progress calculation
+  let steps, doneSteps;
+  if(!isOverseas){
+    // Local: 4 steps
+    steps = [
+      { label:'PO Confirmed',   done:!!r.po_date,                      date:r.po_date },
+      { label:'Supplier Delivery Date', done:!!r.local_supplier_delivery_date, date:r.local_supplier_delivery_date, editable:'local_supplier_delivery_date', type:'date' },
+      { label:'ETA to Warehouse', done:!!r.local_eta,                  date:r.local_eta, editable:'local_eta', type:'date' },
+      { label:'Received ✅',     done:!!r.local_received_date,          date:r.local_received_date, editable:'local_received_date', type:'date' },
+    ];
+  } else {
+    // Overseas: 8 steps
+    steps = [
+      { label:'PO Confirmed',        done:!!r.po_date,              date:r.po_date },
+      { label:'Can Pickup?',         done:!!r.ov_can_pickup,        date:r.ov_can_pickup,         editable:'ov_can_pickup',        type:'date', hint:'Date confirmed goods ready for pickup' },
+      { label:'Request Ship Docs',   done:!!r.ov_req_ship_docs,     date:r.ov_req_ship_docs,      editable:'ov_req_ship_docs',     type:'date', hint:'Date requested shipping documents from supplier' },
+      { label:'Forwarder',           done:!!r.ov_forwarder,         date:null, editable:'ov_forwarder',        type:'text', hint:'Forwarder name/company', textVal:r.ov_forwarder },
+      { label:'ETD (船期)',           done:!!r.ov_etd,               date:r.ov_etd,                editable:'ov_etd',               type:'date', hint:'Estimated Departure Date' },
+      { label:'ETA (到马来西亚)',      done:!!r.ov_eta,               date:r.ov_eta,                editable:'ov_eta',               type:'date', hint:'Estimated Arrival Date in Malaysia' },
+      { label:'Docs Received',       done:!!r.ov_docs_received,     date:r.ov_docs_received,      editable:'ov_docs_received',     type:'date', hint:'Date received all shipment documents' },
+      { label:'Docs to Forwarder',   done:!!r.ov_docs_to_forwarder, date:r.ov_docs_to_forwarder, editable:'ov_docs_to_forwarder', type:'date', hint:'Date handed documents to forwarder' },
+      { label:'Received ✅',          done:!!r.ov_received_date,     date:r.ov_received_date,      editable:'ov_received_date',     type:'date' },
+    ];
+  }
+  doneSteps = steps.filter(s=>s.done).length;
+  const pct = Math.round(doneSteps/steps.length*100);
+
+  // Next pending step
+  const nextStep = steps.find(s=>!s.done);
+
+  // Step flow HTML
+  const stepFlow = steps.map((s,i)=>{
+    const circleColor = s.done ? '#1f7a4d' : (i===doneSteps ? typeColor : '#dfe4ea');
+    const textColor   = s.done ? '#1f7a4d' : (i===doneSteps ? typeColor : '#94a3b8');
+    const editBtn = (s.editable && !isDone && !isMGR_view) ? `
+      <div style="margin-top:3px;">
+        ${s.type==='date' ? `<input type="date" style="font-size:10px;border:1px solid #e2e8f0;border-radius:5px;padding:2px 4px;" value="${s.date||''}" onchange="updateShip('${r.id}',{'${s.editable}':this.value||null});this.blur()">` :
+          `<input type="text" style="font-size:10px;border:1px solid #e2e8f0;border-radius:5px;padding:2px 4px;width:120px;" placeholder="${s.hint||''}" value="${s.textVal||''}" onblur="updateShip('${r.id}',{'${s.editable}':this.value.trim()||null})">`
+        }
+      </div>` : '';
+    // MGR can also edit
+    const mgrEditBtn = (s.editable && !isDone && isMGR_view) ? `
+      <div style="margin-top:3px;">
+        ${s.type==='date' ? `<input type="date" style="font-size:10px;border:1px solid #e2e8f0;border-radius:5px;padding:2px 4px;" value="${s.date||''}" onchange="updateShip('${r.id}',{'${s.editable}':this.value||null});this.blur()">` :
+          `<input type="text" style="font-size:10px;border:1px solid #e2e8f0;border-radius:5px;padding:2px 4px;width:120px;" placeholder="${s.hint||''}" value="${s.textVal||''}" onblur="updateShip('${r.id}',{'${s.editable}':this.value.trim()||null})">`
+        }
+      </div>` : '';
+    return `<div style="display:flex;flex-direction:column;align-items:center;min-width:70px;max-width:90px;text-align:center;">
+      <div style="width:24px;height:24px;border-radius:50%;background:${circleColor};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${s.done||i===doneSteps?'#fff':'#94a3b8'};flex-shrink:0;">${s.done?'✓':(i+1)}</div>
+      <div style="font-size:9px;font-weight:700;color:${textColor};margin-top:3px;line-height:1.3;">${s.label}</div>
+      ${s.date?`<div style="font-size:9px;color:#64748b;margin-top:1px;">${s.date}</div>`:''}
+      ${s.textVal&&s.label==='Forwarder'?`<div style="font-size:9px;color:#64748b;margin-top:1px;">${escapeHtml(s.textVal)}</div>`:''}
+      ${editBtn}${mgrEditBtn}
+    </div>`;
+  });
+
+  // Step lines between circles
+  const flowWithLines = [];
+  stepFlow.forEach((s,i)=>{
+    flowWithLines.push(s);
+    if(i<stepFlow.length-1){
+      const lineDone = steps[i].done && steps[i+1].done;
+      flowWithLines.push(`<div style="flex:1;height:2px;background:${lineDone?'#1f7a4d':'#dfe4ea'};margin-top:12px;flex-shrink:1;"></div>`);
+    }
+  });
+
+  // Manager comment section
+  const mgrCommentSection = isMGR_view ? `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
+      <div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:4px;">👔 Manager Comment</div>
+      <textarea rows="2" style="width:100%;border:1px solid #c4b5fd;border-radius:6px;padding:6px 8px;font-size:11px;resize:vertical;" placeholder="Add comment or follow-up note…" onblur="updateShip('${r.id}',{mgr_comment:this.value.trim()||null})">${escapeHtml(r.mgr_comment||'')}</textarea>
+    </div>` : (r.mgr_comment ? `<div style="margin-top:8px;padding:6px 10px;background:#ede9fe;border-radius:6px;font-size:11px;color:#5b21b6;">👔 ${escapeHtml(r.mgr_comment)}</div>` : '');
+
+  return `<div style="border:1px solid ${isDone?'#86efac':typeColor+'44'};border-radius:10px;padding:14px;margin-bottom:12px;background:${isDone?'#f0fdf4':'var(--card)'};">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+      <div>
+        <div style="font-family:monospace;font-weight:800;font-size:14px;">${escapeHtml(r.po_num||'—')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(r.supplier||'—')} · PO: ${r.po_date||'—'}</div>
+        ${r.item_desc?`<div style="font-size:11px;color:var(--ink);margin-top:2px;">${escapeHtml(r.item_desc)}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:${typeBg};color:${typeColor};">${isOverseas?'✈️ Overseas':'🏠 Local'}</span>
+        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:${isDone?'var(--ok-bg)':'#eef1f5'};color:${isDone?'var(--ok)':'#64748b'};">${doneSteps}/${steps.length} · ${pct}%</span>
+        ${isDone?'':`<button class="ghost" style="font-size:10px;padding:3px 8px;color:var(--ok);" onclick="updateShip('${r.id}',{status:'received'})">✅ Mark Received</button>`}
+      </div>
+    </div>
+
+    ${nextStep&&!isDone?`<div style="font-size:11px;font-weight:700;color:${typeColor};margin-bottom:10px;padding:6px 10px;background:${typeBg};border-radius:6px;">⏳ Next: ${nextStep.label}${nextStep.hint?' — '+nextStep.hint:''}</div>`:''}
+
+    <!-- Progress bar -->
+    <div style="background:#eef1f5;border-radius:20px;height:6px;margin-bottom:12px;overflow:hidden;">
+      <div style="width:${pct}%;height:100%;background:${isDone?'var(--ok)':typeColor};border-radius:20px;transition:width .3s;"></div>
+    </div>
+
+    <!-- Step flow -->
+    <div style="display:flex;align-items:flex-start;gap:2px;overflow-x:auto;padding-bottom:4px;">
+      ${flowWithLines.join('')}
+    </div>
+
+    ${r.remarks?`<div style="margin-top:8px;font-size:11px;color:var(--muted);">📝 ${escapeHtml(r.remarks)}</div>`:''}
+    ${mgrCommentSection}
+  </div>`;
+}
+
+// ── Calendar ─────────────────────────────────────────────────
+function changeCalMonth(dir){
+  calBaseMonth += dir;
+  renderCalendar();
+}
+
+function renderCalendar(){
+  const labelEl = document.getElementById('calMonthLabel');
+  const gridEl  = document.getElementById('calendarGrid');
+  const listEl  = document.getElementById('calendarList');
+  if(!gridEl) return;
+
+  const today = new Date();
+  const baseDate = new Date(today.getFullYear(), today.getMonth() + calBaseMonth, 1);
+  const year  = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+  const monthName = baseDate.toLocaleString('en-MY',{month:'long',year:'numeric'});
+  if(labelEl) labelEl.textContent = monthName;
+
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const todayStr = todayISO_MY();
+
+  // Key dates from shipments for this month
+  function isoDate(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+  const dateMap = {}; // date → array of {po_num, type, label, color}
+  const teal='#0f766e', blue='#1d4ed8', purple='#5b21b6';
+
+  shipments.forEach(r=>{
+    const isOV = r.type==='Overseas';
+    const addDot = (date, label, color) => {
+      if(!date) return;
+      if(date.slice(0,7) !== `${year}-${String(month+1).padStart(2,'0')}`) return;
+      if(!dateMap[date]) dateMap[date]=[];
+      dateMap[date].push({po_num:r.po_num, supplier:r.supplier, label, color, type:r.type, id:r.id});
+    };
+    if(!isOV){
+      addDot(r.local_supplier_delivery_date, 'Supplier Delivery', teal);
+      addDot(r.local_eta, 'ETA', teal);
+      addDot(r.local_received_date, 'Received ✅', '#1f7a4d');
+    } else {
+      addDot(r.ov_etd, 'ETD 出发', blue);
+      addDot(r.ov_eta, 'ETA 到港', blue);
+      addDot(r.ov_docs_received, 'Docs Received', purple);
+      addDot(r.ov_docs_to_forwarder, 'Docs→Forwarder', purple);
+      addDot(r.ov_received_date, 'Received ✅', '#1f7a4d');
+    }
+  });
+
+  // Calendar grid
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let grid = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:16px;">`;
+  dayNames.forEach(d=>{
+    grid += `<div style="text-align:center;font-size:10px;font-weight:700;color:var(--muted);padding:4px;">${d}</div>`;
+  });
+  // Empty cells before first
+  for(let i=0;i<firstDow;i++) grid += `<div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr = isoDate(year,month,d);
+    const isToday = dateStr===todayStr;
+    const dots = dateMap[dateStr]||[];
+    const hasDots = dots.length>0;
+    grid += `<div style="min-height:52px;border:1px solid ${isToday?'#5b21b6':'var(--line)'};border-radius:6px;padding:3px;background:${isToday?'#faf5ff':'var(--card)'};cursor:${hasDots?'pointer':'default'};" ${hasDots?`onclick="showCalDay('${dateStr}')"`:''}">
+      <div style="font-size:11px;font-weight:${isToday?'800':'600'};color:${isToday?'#5b21b6':'var(--navy)'};margin-bottom:2px;">${d}</div>
+      ${dots.slice(0,2).map(dot=>`<div style="font-size:8px;font-weight:700;padding:1px 3px;border-radius:3px;background:${dot.color}22;color:${dot.color};margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${dot.label}</div>`).join('')}
+      ${dots.length>2?`<div style="font-size:8px;color:var(--muted);">+${dots.length-2} more</div>`:''}
+    </div>`;
+  }
+  grid += `</div>`;
+  gridEl.innerHTML = grid;
+
+  // List below calendar — shipments with dates in this month
+  if(!listEl) return;
+  const relevantShips = shipments.filter(r=>{
+    const checkDate = (d)=>d&&d.slice(0,7)===`${year}-${String(month+1).padStart(2,'0')}`;
+    return checkDate(r.local_supplier_delivery_date)||checkDate(r.local_eta)||checkDate(r.local_received_date)||
+           checkDate(r.ov_etd)||checkDate(r.ov_eta)||checkDate(r.ov_docs_received)||
+           checkDate(r.ov_docs_to_forwarder)||checkDate(r.ov_received_date);
+  });
+
+  if(!relevantShips.length){
+    listEl.innerHTML='<div class="empty">No shipment events this month</div>'; return;
+  }
+  listEl.innerHTML = relevantShips.map(r=>{
+    const isOV=r.type==='Overseas';
+    const typeColor=isOV?'#1d4ed8':'#0f766e';
+    const events = [];
+    if(!isOV){
+      if(r.local_supplier_delivery_date) events.push({label:'Supplier Delivery',date:r.local_supplier_delivery_date});
+      if(r.local_eta) events.push({label:'ETA Warehouse',date:r.local_eta});
+      if(r.local_received_date) events.push({label:'Received ✅',date:r.local_received_date});
+    } else {
+      if(r.ov_etd) events.push({label:'ETD 出发',date:r.ov_etd});
+      if(r.ov_eta) events.push({label:'ETA 到港',date:r.ov_eta});
+      if(r.ov_docs_received) events.push({label:'Docs Received',date:r.ov_docs_received});
+      if(r.ov_docs_to_forwarder) events.push({label:'Docs→Forwarder',date:r.ov_docs_to_forwarder});
+      if(r.ov_received_date) events.push({label:'Received ✅',date:r.ov_received_date});
+    }
+    events.sort((a,b)=>a.date.localeCompare(b.date));
+    return `<div style="border:1px solid ${typeColor}44;border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div>
+          <span style="font-family:monospace;font-weight:800;font-size:13px;">${escapeHtml(r.po_num||'—')}</span>
+          <span style="font-size:10px;margin-left:6px;background:${isOV?'#dbeafe':'#ccfbf1'};color:${typeColor};padding:1px 6px;border-radius:8px;">${isOV?'✈️ Overseas':'🏠 Local'}</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${escapeHtml(r.supplier||'—')}</div>
+      ${events.map(e=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid var(--line);">
+        <span style="color:${typeColor};font-weight:600;">${e.label}</span>
+        <span style="color:var(--ink);font-weight:700;">${e.date}${e.date===todayStr?' 📅 TODAY':''}</span>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function showCalDay(dateStr){
+  const events = shipments.filter(r=>{
+    const d = r.local_supplier_delivery_date||r.local_eta||r.local_received_date||r.ov_etd||r.ov_eta||r.ov_docs_received||r.ov_docs_to_forwarder||r.ov_received_date;
+    return [r.local_supplier_delivery_date,r.local_eta,r.local_received_date,r.ov_etd,r.ov_eta,r.ov_docs_received,r.ov_docs_to_forwarder,r.ov_received_date].includes(dateStr);
+  });
+  if(!events.length) return;
+  toast('📅 '+dateStr+': '+events.map(r=>r.po_num).join(', '));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   END SHIPMENT SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
 function escapeHtml(str){ if(!str) return ''; return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 document.getElementById('filterTabs').addEventListener('click', (e)=>{
@@ -659,11 +1863,16 @@ document.getElementById('searchBox').addEventListener('input', (e)=>{
 
 /* init */
 document.getElementById('newInvoiceDate').value = todayISO_MY();
-loadInvoices();
 
 if(sbClient){
-  sbClient.channel('invoice_submissions_changes')
-    .on('postgres_changes', {event:'*', schema:'public', table: TABLE}, () => loadInvoices())
+  sbClient.channel('invoice_changes')
+    .on('postgres_changes', {event:'*', schema:'public', table: TABLE}, () => { if(currentRole!=='PE') loadInvoices(); })
+    .subscribe();
+  sbClient.channel('pe_shipments_changes')
+    .on('postgres_changes', {event:'*', schema:'public', table: SHIP_TABLE}, () => { loadShipments(); })
+    .subscribe();
+  sbClient.channel('pe_log_changes')
+    .on('postgres_changes', {event:'*', schema:'public', table: PO_TABLE}, () => { if(currentRole==='PE'||currentRole==='MGR') loadPOEntries(); })
     .subscribe();
 }
 </script>
