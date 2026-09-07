@@ -233,7 +233,13 @@
     <button class="primary" onclick="addInvoice()">Add Invoice</button>
   </div>
 
-  <div class="list-head"><h2>Invoice Log</h2></div>
+  <div class="list-head">
+    <h2>Invoice Log</h2>
+    <div style="display:flex;gap:5px;">
+      <button onclick="exportOEBackupJSON()" style="font-size:10px;padding:4px 10px;border:1px solid #0f766e;border-radius:6px;background:#ccfbf1;color:#0f766e;cursor:pointer;font-weight:700;">⬇️ Backup</button>
+      <button onclick="importOERestoreJSON()" style="font-size:10px;padding:4px 10px;border:1px solid #1d4ed8;border-radius:6px;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700;">⬆️ Restore</button>
+    </div>
+  </div>
   <input type="text" id="searchBox" placeholder="🔍 Search invoice no. or customer (any status)..." style="width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:13px; margin-bottom:10px;">
   <div class="filter-tabs" id="filterTabs">
     <button data-f="all" class="active">All</button>
@@ -359,12 +365,14 @@
     <div class="card">
       <div class="list-head">
         <h2 style="color:#5b21b6;">📋 PO Records</h2>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
           <button class="ghost" id="fAll"      onclick="setPOFilter('all')"      style="font-size:10px;">All</button>
           <button class="ghost" id="fActive"   onclick="setPOFilter('active')"   style="font-size:10px;background:#5b21b6;color:#fff;border-color:#5b21b6;">Active</button>
           <button class="ghost" id="fLocal"    onclick="setPOFilter('Local')"    style="font-size:10px;">🏠 Local</button>
           <button class="ghost" id="fOverseas" onclick="setPOFilter('Overseas')" style="font-size:10px;">✈️ Overseas</button>
           <button class="ghost" id="fDone"     onclick="setPOFilter('done')"     style="font-size:10px;">✅ Done</button>
+          <button onclick="exportBackupJSON()" style="font-size:10px;padding:4px 10px;border:1px solid #0f766e;border-radius:6px;background:#ccfbf1;color:#0f766e;cursor:pointer;font-weight:700;">⬇️ Backup</button>
+          <button onclick="importRestoreJSON()" style="font-size:10px;padding:4px 10px;border:1px solid #1d4ed8;border-radius:6px;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700;">⬆️ Restore</button>
         </div>
       </div>
       <input type="text" id="poSearch" placeholder="🔍 Search PO No. or Supplier…"
@@ -699,6 +707,96 @@ async function updateRec(id, fields){
   await loadPORecords();
 }
 
+async function deletePORec(id, po_num){
+  if(!confirm(`Delete PO "${po_num}"? This cannot be undone.`)) return;
+  if(!sbClient)return;
+  const {error}=await sbClient.from(SHIP_TABLE).delete().eq('id',id);
+  if(error){toast('❌ Delete failed: '+error.message);return;}
+  toast('🗑️ PO deleted');
+  await loadPORecords();
+}
+
+function exportBackupJSON(){
+  if(!poRecords.length){toast('No records to export');return;}
+  const data = JSON.stringify({table:'pe_shipments', exported:nowMYT_date(), records:poRecords}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `pe_shipments_backup_${nowMYT_date()}.json`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('✅ Backup downloaded! ('+poRecords.length+' records)');
+}
+
+function importRestoreJSON(){
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      // Support both formats: array or {records:[...]}
+      const records = Array.isArray(parsed) ? parsed : (parsed.records || []);
+      if(!records.length){ toast('❌ No records found in file'); return; }
+      if(!confirm(`Restore ${records.length} records from backup?\nThis will INSERT them as new records (existing data is NOT deleted).`)) return;
+      // Remove id and created_at so Supabase generates new ones
+      const toInsert = records.map(r => {
+        const {id, created_at, ...rest} = r;
+        return rest;
+      });
+      const {error} = await sbClient.from(SHIP_TABLE).insert(toInsert);
+      if(error){ toast('❌ Restore failed: '+error.message); return; }
+      toast('✅ Restored '+toInsert.length+' records successfully!');
+      await loadPORecords();
+    } catch(err) {
+      toast('❌ Invalid JSON file: '+err.message);
+    }
+  };
+  input.click();
+}
+
+/* ── OE Invoice Backup & Restore ───────────────────────────── */
+function exportOEBackupJSON(){
+  if(!invoices.length){toast('No invoices to export');return;}
+  const data = JSON.stringify({table:'invoice_submissions', exported:nowMYT_date(), records:invoices}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `oe_invoices_backup_${nowMYT_date()}.json`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('✅ OE Backup downloaded! ('+invoices.length+' records)');
+}
+
+function importOERestoreJSON(){
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const records = Array.isArray(parsed) ? parsed : (parsed.records || []);
+      if(!records.length){ toast('❌ No records found in file'); return; }
+      if(!confirm(`Restore ${records.length} invoice records?\nThis will INSERT them as new records (existing data is NOT deleted).`)) return;
+      const toInsert = records.map(r => {
+        const {id, created_at, ...rest} = r;
+        return rest;
+      });
+      const {error} = await sbClient.from(TABLE).insert(toInsert);
+      if(error){ toast('❌ Restore failed: '+error.message); return; }
+      toast('✅ Restored '+toInsert.length+' invoices successfully!');
+      await loadInvoices();
+    } catch(err) {
+      toast('❌ Invalid JSON file: '+err.message);
+    }
+  };
+  input.click();
+}
+
 /* ── Stamp a shipment step ──────────────────────────────────── */
 function stampStep(id, field){
   const d=nowMYT_date();
@@ -828,11 +926,10 @@ function poCardHTML(r, readOnly){
     }
   });
 
-  // Error edit controls (PE self or MGR)
-  const showErrEdit = (!readOnly && currentRole==='PE') || (currentRole==='MGR');
-  const errEditHTML = showErrEdit ? `
+  // Error edit controls — MGR only; PE sees read-only badge
+  const errEditHTML = currentRole==='MGR' ? `
     <div style="margin-top:8px;padding:8px 10px;background:${r.has_error?'var(--bad-bg)':'#f0fdf4'};border-radius:8px;border:1px solid ${r.has_error?'#fca5a5':'#86efac'};">
-      <div style="font-size:10px;font-weight:700;color:${r.has_error?'var(--bad)':'var(--ok)'};margin-bottom:6px;">KPI 2 — Accuracy ${currentRole==='MGR'?'(Manager can edit)':'(can edit anytime)'}</div>
+      <div style="font-size:10px;font-weight:700;color:${r.has_error?'var(--bad)':'var(--ok)'};margin-bottom:6px;">KPI 2 — Accuracy (Manager only)</div>
       <div style="display:flex;gap:12px;margin-bottom:6px;">
         <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;">
           <input type="radio" name="err_${r.id}" value="No" ${!r.has_error?'checked':''} onchange="updateRec('${r.id}',{has_error:false,error_desc:''})"> ✅ No Error
@@ -846,7 +943,10 @@ function poCardHTML(r, readOnly){
           style="width:100%;border:1px solid #fca5a5;border-radius:6px;padding:6px 8px;font-size:12px;margin-bottom:6px;box-sizing:border-box;">
         <button onclick="updateRec('${r.id}',{has_error:true,error_desc:document.getElementById('errDesc_${r.id}').value.trim()})" style="background:var(--bad);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">Save Error</button>
       </div>
-    </div>` : (r.has_error?`<div style="margin-top:6px;padding:5px 8px;background:var(--bad-bg);border-radius:6px;font-size:11px;color:var(--bad);">❌ ${escapeHtml(r.error_desc||'Error noted')}</div>`:'');
+    </div>` : (r.has_error?`<div style="margin-top:6px;padding:6px 10px;background:var(--bad-bg);border-radius:8px;border:1px solid #fca5a5;">
+        <div style="font-size:10px;font-weight:700;color:var(--bad);margin-bottom:3px;">❌ KPI 2 — Error Noted by Manager</div>
+        ${r.error_desc?`<div style="font-size:11px;color:#7f1d1d;">${escapeHtml(r.error_desc)}</div>`:'<div style="font-size:11px;color:var(--bad);font-style:italic;">No description provided</div>'}
+      </div>`:'');
 
   // MGR comment
   const mgrCommentHTML = currentRole==='MGR' ? `
@@ -867,6 +967,7 @@ function poCardHTML(r, readOnly){
         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${tBg};color:${tColor};">${isOV?'✈️ Overseas':'🏠 Local'}</span>
         ${procRat?`<span class="badge ${rbCls(procRat)}">⏱ ${d}d · R${procRat} ${rlbl(procRat)}</span>`:''}
         <span class="badge ${rbCls(accRat)}">${r.has_error?'❌ Error':'✅ Accurate'} R${accRat}</span>
+        ${currentRole==='MGR'?`<button onclick="deletePORec('${r.id}','${(r.po_num||'').replace(/'/g,"\'")}')" style="font-size:10px;padding:2px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;cursor:pointer;margin-top:2px;">🗑️ Delete</button>`:''}
       </div>
     </div>
 
