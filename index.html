@@ -857,6 +857,9 @@ function allGRReceived(o){
   return !o.poList || o.poList.length===0 || o.poList.every(p=>p.grNum);
 }
 function stageOf(o){
+  if(o.orderType==='pickup'){
+    return o.pickupDone?'pickupDone':'pickupPending';
+  }
   if(o.status==='Cancelled') return 'cancelled';
   if(o.deliveredDate) return 'delivered';
   if(o.dispatchedDate) return 'dispatched';
@@ -870,8 +873,8 @@ function stageOf(o){
   if(o.passedToSK) return 'pendingSK';
   return 'pendingOC';
 }
-function stageLabel(s){return{pendingOC:'Pending (OC)',pendingSK:'Pending (SK)',awaitingGoods:'Awaiting Goods',picking:'Picking',pendingDiscrep:'Pending Discrepancy',pendingDO:'Pending DO',ready:'Ready to Ship',dispatched:'Dispatched',delivered:'Delivered',cancelled:'Cancelled'}[s]||s}
-function stagePillClass(s){return{pendingOC:'pill-pending',pendingSK:'pill-hold',awaitingGoods:'pill-hold',picking:'pill-wip',pendingDiscrep:'pill-hold',pendingDO:'pill-hold',ready:'pill-wip',dispatched:'pill-wip',delivered:'pill-done',cancelled:'pill-cancel'}[s]||'pill-pending'}
+function stageLabel(s){return{pendingOC:'Pending (OC)',pendingSK:'Pending (SK)',awaitingGoods:'Awaiting Goods',picking:'Picking',pendingDiscrep:'Pending Discrepancy',pendingDO:'Pending DO',ready:'Ready to Ship',dispatched:'Dispatched',delivered:'Delivered',cancelled:'Cancelled',pickupPending:'Pick Up — Pending',pickupDone:'Pick Up — Done'}[s]||s}
+function stagePillClass(s){return{pendingOC:'pill-pending',pendingSK:'pill-hold',awaitingGoods:'pill-hold',picking:'pill-wip',pendingDiscrep:'pill-hold',pendingDO:'pill-hold',ready:'pill-wip',dispatched:'pill-wip',delivered:'pill-done',cancelled:'pill-cancel',pickupPending:'pill-wip',pickupDone:'pill-done'}[s]||'pill-pending'}
 function showToast(msg,ms=2200){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.remove('hidden');
@@ -1189,6 +1192,37 @@ function renderOrders(){
 
   return`
   ${role==='OC'||role==='MGR'?`
+  <!-- Pick Up Task Form -->
+  <div class="card" style="margin-bottom:10px;border:1.5px solid var(--teal)">
+    <div class="card-head" style="cursor:pointer;background:var(--teal-lt)" onclick="togglePickUp()">
+      <span class="card-title" style="color:var(--teal)">📦 New Pick Up Task</span>
+      <span id="pickup-toggle" style="font-size:12px;color:var(--teal)">▼ Open</span>
+    </div>
+    <div id="pickup-form" class="hidden">
+      <div class="card-body">
+        <div class="form-row">
+          <div class="fg"><label>Pick Up Reference No *</label><input id="pu-ref" placeholder="e.g. PU-2609-001"></div>
+          <div class="fg"><label>Pick Up Date *</label><input type="date" id="pu-date" value="${today()}"></div>
+          <div class="fg"><label>Pick Up Location *</label><input id="pu-location" placeholder="Supplier name / address"></div>
+        </div>
+        <div class="form-row">
+          <div class="fg" style="grid-column:span 2"><label>Goods Description *</label><input id="pu-goods" placeholder="e.g. Filter parts, 5 boxes"></div>
+          <div class="fg"><label>Related SO (optional)</label>
+            <select id="pu-so">
+              <option value="">— None / Independent —</option>
+              ${db.orders.filter(o=>o.orderType!=='pickup'&&!o.deliveredDate).sort((a,b)=>(b.soDate||'').localeCompare(a.soDate||'')).map(o=>`<option value="${o.id}">${esc(o.soNum)} · ${esc(o.customer)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="fg"><label>Estimated Time</label><input type="time" id="pu-time"></div>
+          <div class="fg"><label>Remarks for Driver</label><input id="pu-remarks" placeholder="Optional notes"></div>
+        </div>
+        <button class="btn btn-primary" style="background:var(--teal);margin-top:4px" onclick="createPickUp()" type="button">📦 Create Pick Up Task</button>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-head">
       <span class="card-title">+ New Sales Order</span>
@@ -1203,7 +1237,7 @@ function renderOrders(){
         <div class="fg"><label>Requested Delivery Date</label><input type="date" id="n-reqdate"></div>
         <div class="fg"><label>OC Received Date * <span style="font-size:9px;color:var(--grey-400);font-weight:400">(Date OC actually received this SO)</span></label><input type="date" id="n-ocreceived" value="${today()}"></div>
         <div class="fg"><label>Delivery Type</label>
-          <select id="n-dtype"><option value="Local">Local (Same Day)</option><option value="Outstation">Outstation</option></select>
+          <select id="n-dtype"><option value="Local">Local (Same Day)</option><option value="Outstation">Outstation</option><option value="External">External Transport</option></select>
         </div>
       </div>
       <div class="form-row">
@@ -1486,6 +1520,90 @@ function openSOFromDash(id, openGR, poIdx){
       openSO(id);
     }
   }, 300);
+}
+
+function togglePickUp(){
+  const form=document.getElementById('pickup-form');
+  const toggle=document.getElementById('pickup-toggle');
+  if(!form||!toggle) return;
+  const isHidden=form.classList.contains('hidden');
+  form.classList.toggle('hidden',!isHidden);
+  toggle.textContent=isHidden?'▲ Close':'▼ Open';
+}
+
+function createPickUp(){
+  const ref=document.getElementById('pu-ref').value.trim();
+  const date=document.getElementById('pu-date').value;
+  const location=document.getElementById('pu-location').value.trim();
+  const goods=document.getElementById('pu-goods').value.trim();
+  if(!ref||!date||!location||!goods){showToast('⚠️ Please fill in all required fields');return}
+  if(db.orders.find(o=>o.soNum===ref)){showToast('⚠️ Reference number already exists');return}
+
+  const relatedSO=document.getElementById('pu-so').value;
+  const time=document.getElementById('pu-time').value;
+  const remarks=document.getElementById('pu-remarks').value.trim();
+
+  const order={
+    id:Date.now().toString(),
+    orderType:'pickup',
+    soNum:ref,
+    soDate:date,
+    ocReceivedDate:date,
+    customer:location,
+    goods:goods,
+    relatedSOId:relatedSO||null,
+    estimatedTime:time||null,
+    remarks:remarks||null,
+    status:'Active',
+    storeKeepers:[],
+    poList:[],
+    createdBy:currentUser.name,
+  };
+
+  db.orders.push(order);
+  saveDB(order);
+  showToast('📦 Pick Up task created — '+ref);
+
+  // Notify LD
+  showNotification({
+    title:'📦 New Pick Up Task',
+    body:ref+' · '+location+' · '+goods+(time?' at '+time:''),
+    type:'pickup',
+  },'LD');
+
+  // Reset form
+  ['pu-ref','pu-location','pu-goods','pu-remarks'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pu-date').value=today();
+  document.getElementById('pu-so').value='';
+  document.getElementById('pu-time').value='';
+  togglePickUp();
+  document.getElementById('main-content').innerHTML=renderOrders();
+}
+
+// Update pick up done by LD
+function updatePickUp(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const lorryVal=document.getElementById('d-lorry').value;
+  o.driverName=document.getElementById('d-driver').value.trim()||currentUser.name;
+  o.lorryNumber=lorryVal||null;
+  o.lorryNumberOther=lorryVal==='Other'?document.getElementById('d-lorry-remark')?.value.trim():null;
+  o.lorryDisplay=lorryVal==='Other'?(document.getElementById('d-lorry-remark')?.value.trim()||'Other'):lorryVal;
+  const mBefore=document.getElementById('d-mileage-before').value;
+  const mAfter=document.getElementById('d-mileage-after').value;
+  o.mileageBefore=mBefore?parseFloat(mBefore):null;
+  o.mileageAfter=mAfter?parseFloat(mAfter):null;
+  o.mileageTotal=(mBefore&&mAfter&&parseFloat(mAfter)>parseFloat(mBefore))?parseFloat(mAfter)-parseFloat(mBefore):null;
+  o.pickupNote=document.getElementById('pu-done-note')?.value.trim()||null;
+  o.pickupError=document.getElementById('pu-error')?.value||'No';
+  // Auto record time on completion
+  if(!o.pickupDone){
+    o.pickupDone=myDate();
+    o.pickupDoneTime=myTime();
+  }
+  saveDB(o);
+  showToast('✅ Pick Up completed — '+myTime());
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('main-content').innerHTML=renderOrders();
 }
 
 function filterMonth(m){
@@ -1860,7 +1978,50 @@ function openSO(id){
     </div><hr class="divider">`;
   }
 
-  if(role==='LD'||role==='MGR'){
+  // Pickup order — show pickup UI for LD
+  if((role==='LD'||role==='MGR')&&o.orderType==='pickup'){
+    html+=`<div class="form-section">
+      <div class="form-section-title">📦 Pick Up Task</div>
+      <div style="background:var(--teal-lt);border:1px solid #5eead4;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+        <div style="margin-bottom:3px"><span style="color:var(--grey-500)">Location:</span> <strong>${esc(o.customer)}</strong></div>
+        <div style="margin-bottom:3px"><span style="color:var(--grey-500)">Goods:</span> <strong>${esc(o.goods||'—')}</strong></div>
+        ${o.estimatedTime?`<div style="margin-bottom:3px"><span style="color:var(--grey-500)">Est. Time:</span> <strong>${o.estimatedTime}</strong></div>`:''}
+        ${o.remarks?`<div><span style="color:var(--grey-500)">Remarks:</span> <strong>${esc(o.remarks)}</strong></div>`:''}
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Driver Name</label><input id="d-driver" value="${esc(currentUser.role==='LD'?currentUser.name:o.driverName||'')}"></div>
+        <div class="fg"><label>Lorry Number</label>
+          <select id="d-lorry" onchange="toggleLorryRemark(this.value)">
+            <option value="">— Select —</option>
+            <option value="WA4913Q" ${o.lorryNumber==='WA4913Q'?'selected':''}>WA4913Q</option>
+            <option value="VMJ8882" ${o.lorryNumber==='VMJ8882'?'selected':''}>VMJ8882</option>
+            <option value="JVS8882" ${o.lorryNumber==='JVS8882'?'selected':''}>JVS8882</option>
+            <option value="Other" ${o.lorryNumber==='Other'?'selected':''}>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Mileage Before (KM)</label><input type="number" id="d-mileage-before" placeholder="e.g. 12450" value="${o.mileageBefore||''}"></div>
+        <div class="fg"><label>Mileage After (KM)</label><input type="number" id="d-mileage-after" placeholder="e.g. 12580" value="${o.mileageAfter||''}" oninput="calcTripKM()"></div>
+        <div class="fg"><label>Total KM (Auto)</label><input type="number" id="d-mileage-total" readonly style="background:var(--grey-50);color:var(--grey-500)" value="${o.mileageBefore&&o.mileageAfter?o.mileageAfter-o.mileageBefore:''}" placeholder="Auto"></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>Pick Up Error?</label>
+          <select id="pu-error">
+            <option value="No" ${(o.pickupError||'No')!=='Yes'?'selected':''}>No — Picked up correctly</option>
+            <option value="Yes" ${o.pickupError==='Yes'?'selected':''}>Yes — Error occurred</option>
+          </select>
+        </div>
+        <div class="fg" style="grid-column:span 2"><label>Error / Notes</label><input id="pu-done-note" placeholder="e.g. Wrong item, damaged goods" value="${esc(o.pickupNote||'')}"></div>
+      </div>
+      ${o.pickupDone
+        ?`<div style="background:var(--green-lt);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--green);font-weight:600;margin-bottom:10px">✅ Completed on ${fmt(o.pickupDone)} at ${o.pickupDoneTime||'—'} (Malaysia Time)</div>
+          <button class="btn btn-sm btn-ghost" style="width:100%;justify-content:center;margin-bottom:8px" onclick="updatePickUp('${id}')" type="button">💾 Save Update</button>`
+        :`<button class="btn btn-sm" style="background:var(--teal);color:white;width:100%;justify-content:center;padding:12px;font-size:14px" onclick="updatePickUp('${id}')" type="button">✅ Mark Pick Up Completed — Record Time</button>`}
+    </div>`;
+  }
+
+  if((role==='LD'||role==='MGR')&&o.orderType!=='pickup'){
     const delivTime=o.deliveredTime||'';
     const dispTime=o.dispatchedTime||'';
     html+=`<div class="form-section">
@@ -2429,7 +2590,10 @@ function renderKPI(){
     const delivered=myOrders.filter(o=>o.deliveredDate);
     // For OC KPI: if last date change was customer-requested, use original date for "fault" check
     // but use final requestedDate for on-time check (customer changed it, so new date is the target)
-    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
+    // On-time: delivery on time + pickup on time (vs estimatedTime)
+    const onTimeDelivery=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
+    const onTimePickup=pickupsDone.filter(o=>!o.estimatedTime||o.pickupDoneTime<=o.estimatedTime);
+    const onTime=[...onTimeDelivery,...onTimePickup];
     const customerChangedDate=delivered.filter(o=>o.lastDateChangeReason==='customer');
     const ocFaultLate=delivered.filter(o=>{
       const ed=effectiveReqDate(o);
@@ -2482,7 +2646,7 @@ function renderKPI(){
       <div class="kpi-card">
         <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
         <div class="kpi-value" style="color:${ratingColor(r1)}">${pct(otPct)}</div>
-        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
+        <div class="kpi-sub">${onTime.length}/${allCompleted.length} on time (delivery+pickup) · Target ≥ 95%</div>
         ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r1)}"></div></div>`:''}
         ${r1?`<div class="rating-badge" style="background:${ratingColor(r1)}20;color:${ratingColor(r1)}">Rating ${r1} · ${ratingLabel(r1)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No completed deliveries yet</div>'}
       </div>
@@ -2609,12 +2773,23 @@ function renderKPI(){
   }
 
   if(role==='LD'||role==='MGR'){
-    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName&&(o.driverName.trim().toLowerCase()===currentUser.name.trim().toLowerCase()||o.driverName.trim().toLowerCase()===(currentUser.username||'').trim().toLowerCase())):mOrders.filter(o=>o.driverName);
-    const delivered=dOrders.filter(o=>o.deliveredDate);
-    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
-    const noError=delivered.filter(o=>o.deliveryError!=='Yes');
-    const otPct=delivered.length?onTime.length/delivered.length:null;
-    const accPct=delivered.length?noError.length/delivered.length:null;
+    const dOrders=role==='LD'?mOrders.filter(o=>o.driverName&&o.deliveryType!=='External'&&(o.driverName.trim().toLowerCase()===currentUser.name.trim().toLowerCase()||o.driverName.trim().toLowerCase()===(currentUser.username||'').trim().toLowerCase())):mOrders.filter(o=>o.driverName&&o.deliveryType!=='External');
+    // Deliveries (exclude pickup)
+    const delivered=dOrders.filter(o=>o.deliveredDate&&o.orderType!=='pickup');
+    // Pickups completed
+    const pickupsDone=dOrders.filter(o=>o.orderType==='pickup'&&o.pickupDone);
+    // Combined for KPI
+    const allCompleted=[...delivered,...pickupsDone];
+    // On-time: delivery on time + pickup on time (vs estimatedTime)
+    const onTimeDelivery=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
+    const onTimePickup=pickupsDone.filter(o=>!o.estimatedTime||o.pickupDoneTime<=o.estimatedTime);
+    const onTime=[...onTimeDelivery,...onTimePickup];
+    const noError=[
+      ...delivered.filter(o=>o.deliveryError!=='Yes'),
+      ...pickupsDone.filter(o=>o.pickupError!=='Yes')
+    ];
+    const otPct=allCompleted.length?onTime.length/allCompleted.length:null;
+    const accPct=allCompleted.length?noError.length/allCompleted.length:null;
     const r3=otPct===null?null:otPct>=0.98?4:otPct>=0.95?3:otPct>=0.90?2:1;
     const r4=accPct===null?null:accPct>=1?4:accPct>=0.98?3:accPct>=0.95?2:1;
     // Debug: show all delivered orders and their driver names
@@ -2630,21 +2805,21 @@ function renderKPI(){
       <div class="kpi-card">
         <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
         <div class="kpi-value" style="color:${ratingColor(r3)}">${pct(otPct)}</div>
-        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
+        <div class="kpi-sub">${onTime.length}/${allCompleted.length} on time (delivery+pickup) · Target ≥ 95%</div>
         ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r3)}"></div></div>`:''}
         ${r3?`<div class="rating-badge" style="background:${ratingColor(r3)}20;color:${ratingColor(r3)}">Rating ${r3} · ${ratingLabel(r3)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
       </div>
       <div class="kpi-card">
         <div class="kpi-label">KPI 2 — Delivery Accuracy Rate</div>
         <div class="kpi-value" style="color:${ratingColor(r4)}">${pct(accPct)}</div>
-        <div class="kpi-sub">${noError.length}/${delivered.length} no delivery error · Target ≥ 98%</div>
+        <div class="kpi-sub">${noError.length}/${allCompleted.length} no error (delivery+pickup) · Target ≥ 98%</div>
         ${accPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(accPct,1)*100).toFixed(1)}%;background:${ratingColor(r4)}"></div></div>`:''}
         ${r4?`<div class="rating-badge" style="background:${ratingColor(r4)}20;color:${ratingColor(r4)}">Rating ${r4} · ${ratingLabel(r4)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
       </div>
     </div>`;
 
     // ── Mileage Summary ───────────────────────────────────────────────
-    const kmOrders=dOrders.filter(o=>o.mileageTotal&&o.mileageTotal>0);
+    const kmOrders=dOrders.filter(o=>o.mileageTotal&&o.mileageTotal>0); // includes pickup
     const totalKM=kmOrders.reduce((s,o)=>s+(o.mileageTotal||0),0);
     const lorryUsage={};
     kmOrders.forEach(o=>{const l=o.lorryDisplay||o.lorryNumber||'Unknown';lorryUsage[l]=(lorryUsage[l]||0)+(o.mileageTotal||0);});
