@@ -210,9 +210,9 @@
     <summary>Rating rubric — Operations Executive (tap to view)</summary>
     <table class="rule-table">
       <tr><td>100% submitted &amp; followed up; 0 rejections outstanding</td><td>4</td></tr>
-      <tr><td>95–99% submitted on time; all rejections settled within 2 days</td><td>3</td></tr>
-      <tr><td>90–94% submitted on time; rejections settled within 2 days</td><td>2</td></tr>
-      <tr><td>&lt;90% submitted on time, or rejections took &gt;2 days to settle</td><td>1</td></tr>
+      <tr><td>95–99% submitted on time; all rejections settled within 2 working days</td><td>3</td></tr>
+      <tr><td>90–94% submitted on time; rejections settled within 3 working days</td><td>2</td></tr>
+      <tr><td>&lt;90% submitted on time, or rejections took &gt;4 working days to settle</td><td>1</td></tr>
     </table>
   </details>
 
@@ -1556,7 +1556,7 @@ async function confirmRejection(id){
   const reason = reasonEl ? reasonEl.value.trim() : '';
   const history = [...(inv.rejection_history||[]), { rejected_at: todayISO_MY(), reason: reason || '(no reason noted)', resubmitted_at: null }];
   await updateInvoice(id, { rejection_history: history });
-  toast('Marked as rejected — find out why & rectify within 2 days');
+  toast('Marked as rejected — find out why &amp; rectify within 2–3 working days');
 }
 
 async function markResubmitted(id){
@@ -1605,20 +1605,23 @@ function computeSummary(list){
   const outstandingRejectionEntries = allRejectionEntries.filter(e => !e.resubmitted_at);
   const settledRejectionEntries = allRejectionEntries.filter(e => e.resubmitted_at);
   const settledWithin2Entries = settledRejectionEntries.filter(e => daysBetween(e.rejected_at, e.resubmitted_at) <= 2);
+  const settledWithin3Entries = settledRejectionEntries.filter(e => daysBetween(e.rejected_at, e.resubmitted_at) <= 3);
   const outstandingReports = list.filter(i => i.report_required && i.report_submitted_date && !i.report_approved_date);
 
   const total = list.length;
   const done = list.filter(i => i.portal_success_date).length;
   const onTimeRate = submitted.length ? (onTime.length / submitted.length) : 0;
-  const rejSettledRate = settledRejectionEntries.length + outstandingRejectionEntries.length ? (settledWithin2Entries.length / (settledRejectionEntries.length)) : 1;
+  const allRejSettled = outstandingRejectionEntries.length === 0;
+  const allSettledWithin2 = settledRejectionEntries.length ? settledWithin2Entries.length === settledRejectionEntries.length : true;
+  const allSettledWithin3 = settledRejectionEntries.length ? settledWithin3Entries.length === settledRejectionEntries.length : true;
   const outstanding = outstandingRejectionEntries.length + outstandingReports.length;
 
   let rating = null;
   if(total > 0){
-    if(onTimeRate === 1 && outstanding === 0) rating = 4;
-    else if(onTimeRate >= 0.95 && outstanding === 0 && rejSettledRate === 1) rating = 3;
-    else if(onTimeRate >= 0.90 && rejSettledRate === 1) rating = 2;
-    else rating = 1;
+    if(onTimeRate === 1 && outstanding === 0) rating = 4;                                          // 100% + 0 outstanding
+    else if(onTimeRate >= 0.95 && outstanding === 0 && allSettledWithin2) rating = 3;             // 95-99% + settled ≤2 working days
+    else if(onTimeRate >= 0.90 && allRejSettled && allSettledWithin3) rating = 2;                 // 90-94% + settled ≤3 working days
+    else rating = 1;                                                                                // <90% or took >4 working days
   }
   return { total, onTimeRate, outstanding, done, rating };
 }
