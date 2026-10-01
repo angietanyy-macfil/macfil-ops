@@ -844,7 +844,7 @@ function myDateTime(){
   return myDate()+' '+myTime();
 }
 function monthLabel(ym){if(!ym)return'';const[y,m]=ym.split('-');const n=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${n[+m-1]} ${y}`}
-function getMonths(){return[...new Set(db.orders.map(o=>o.soDate.slice(0,7)))].sort().reverse()}
+function getMonths(){return[...new Set(db.orders.map(o=>(o.soDate||o.pickupDate||'').slice(0,7)).filter(Boolean))].sort().reverse()}
 function pct(v){return v===null?'—':(v*100).toFixed(1)+'%'}
 function ratingColor(r){return['','#dc2626','#b45309','#2563eb','#15803d'][r]||'#94a3b8'}
 function ratingLabel(r){return['','Below Expectation','Meeting Expectation','Above Expectation','Outstanding'][r]||'—'}
@@ -1184,8 +1184,8 @@ function renderOrders(){
   db.orders.forEach(o=>stages[stageOf(o)]++);
 
   const filterMonth = selectedMonth;
-  let orders=[...db.orders].sort((a,b)=>b.soDate.localeCompare(a.soDate));
-  if(filterMonth) orders=orders.filter(o=>o.soDate.startsWith(filterMonth));
+  let orders=[...db.orders].sort((a,b)=>(b.soDate||b.ocReceivedDate||'').localeCompare(a.soDate||a.ocReceivedDate||''));
+  if(filterMonth) orders=orders.filter(o=>(o.soDate||o.ocReceivedDate||'').startsWith(filterMonth));
   // search filter applied after render via renderOrdersView
 
   const months=getMonths();
@@ -1327,7 +1327,7 @@ function togglePOPanel(){
 
 function renderPOPanel(){
   const sosWithPO = db.orders.filter(o=>o.poList&&o.poList.length>0)
-    .sort((a,b)=>b.soDate.localeCompare(a.soDate));
+    .sort((a,b)=>(b.soDate||'').localeCompare(a.soDate||''));
 
   if(sosWithPO.length===0){
     return '<div style="text-align:center;padding:20px;font-size:12px;color:var(--grey-400)">No POs added yet.</div>';
@@ -2566,12 +2566,12 @@ function renderKPI(){
   const months=getMonths();
   if(!selectedMonth&&months.length) selectedMonth=months[0];
   const mOrders=selectedQuarter
-    ?db.orders.filter(o=>{const d=o.ocReceivedDate||o.soDate;return d>=window._qStart&&d<=window._qEnd+'-31';})
-    :selectedMonth?db.orders.filter(o=>(o.ocReceivedDate||o.soDate).startsWith(selectedMonth))
+    ?db.orders.filter(o=>{const d=o.ocReceivedDate||o.soDate||'';return d&&d>=window._qStart&&d<=window._qEnd+'-31';})
+    :selectedMonth?db.orders.filter(o=>((o.ocReceivedDate||o.soDate)||'').startsWith(selectedMonth))
     :db.orders;
 
   let html=`<div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">My KPI</div>
-  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${selectedQuarter?selectedQuarter+' '+selectedQuarter==='Q1'?'Apr–Jun 2026':selectedQuarter==='Q2'?'Jul–Sep 2026':selectedQuarter==='Q3'?'Oct–Dec 2026':'Jan–Mar 2027':selectedMonth?monthLabel(selectedMonth):'All time'} · ${roleName(role)}</div>
+  <div style="font-size:12px;color:var(--grey-500);margin-bottom:14px">${selectedQuarter?(selectedQuarter==='Q1'?'Q1 Apr–Jun 2026':selectedQuarter==='Q2'?'Q2 Jul–Sep 2026':selectedQuarter==='Q3'?'Q3 Oct–Dec 2026':'Q4 Jan–Mar 2027'):selectedMonth?monthLabel(selectedMonth):'All time'} · ${roleName(role)}</div>
   <div style="font-size:11px;font-weight:700;color:var(--grey-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">By Quarter</div>
   <div class="month-chips" style="margin-bottom:8px">
     ${[['Q1','2026-04','2026-06'],['Q2','2026-07','2026-09'],['Q3','2026-10','2026-12'],['Q4','2027-01','2027-03']]
@@ -2590,10 +2590,8 @@ function renderKPI(){
     const delivered=myOrders.filter(o=>o.deliveredDate);
     // For OC KPI: if last date change was customer-requested, use original date for "fault" check
     // but use final requestedDate for on-time check (customer changed it, so new date is the target)
-    // On-time: delivery on time + pickup on time (vs estimatedTime)
-    const onTimeDelivery=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
-    const onTimePickup=pickupsDone.filter(o=>!o.estimatedTime||o.pickupDoneTime<=o.estimatedTime);
-    const onTime=[...onTimeDelivery,...onTimePickup];
+    // OC on-time = delivery on time only (pickup not part of OC KPI)
+    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
     const customerChangedDate=delivered.filter(o=>o.lastDateChangeReason==='customer');
     const ocFaultLate=delivered.filter(o=>{
       const ed=effectiveReqDate(o);
@@ -2646,7 +2644,7 @@ function renderKPI(){
       <div class="kpi-card">
         <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
         <div class="kpi-value" style="color:${ratingColor(r1)}">${pct(otPct)}</div>
-        <div class="kpi-sub">${onTime.length}/${allCompleted.length} on time (delivery+pickup) · Target ≥ 95%</div>
+        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
         ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r1)}"></div></div>`:''}
         ${r1?`<div class="rating-badge" style="background:${ratingColor(r1)}20;color:${ratingColor(r1)}">Rating ${r1} · ${ratingLabel(r1)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No completed deliveries yet</div>'}
       </div>
@@ -2780,10 +2778,8 @@ function renderKPI(){
     const pickupsDone=dOrders.filter(o=>o.orderType==='pickup'&&o.pickupDone);
     // Combined for KPI
     const allCompleted=[...delivered,...pickupsDone];
-    // On-time: delivery on time + pickup on time (vs estimatedTime)
-    const onTimeDelivery=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
-    const onTimePickup=pickupsDone.filter(o=>!o.estimatedTime||o.pickupDoneTime<=o.estimatedTime);
-    const onTime=[...onTimeDelivery,...onTimePickup];
+    // OC on-time = delivery on time only (pickup not part of OC KPI)
+    const onTime=delivered.filter(o=>{const ed=effectiveReqDate(o);return ed&&o.deliveredDate<=ed;});
     const noError=[
       ...delivered.filter(o=>o.deliveryError!=='Yes'),
       ...pickupsDone.filter(o=>o.pickupError!=='Yes')
@@ -2805,7 +2801,7 @@ function renderKPI(){
       <div class="kpi-card">
         <div class="kpi-label">KPI 1 — On-Time Delivery Rate</div>
         <div class="kpi-value" style="color:${ratingColor(r3)}">${pct(otPct)}</div>
-        <div class="kpi-sub">${onTime.length}/${allCompleted.length} on time (delivery+pickup) · Target ≥ 95%</div>
+        <div class="kpi-sub">${onTime.length}/${delivered.length} delivered on time · Target ≥ 95%</div>
         ${otPct!==null?`<div class="kpi-bar"><div class="kpi-fill" style="width:${(Math.min(otPct,1)*100).toFixed(1)}%;background:${ratingColor(r3)}"></div></div>`:''}
         ${r3?`<div class="rating-badge" style="background:${ratingColor(r3)}20;color:${ratingColor(r3)}">Rating ${r3} · ${ratingLabel(r3)}</div>`:'<div style="font-size:11px;color:var(--grey-400);margin-top:6px">No deliveries yet</div>'}
       </div>
@@ -2993,7 +2989,7 @@ async function confirmArchive(){
 
 function exportCSV(type){
   const month=document.getElementById('exp-month').value;
-  let orders=[...db.orders].sort((a,b)=>a.soDate.localeCompare(b.soDate));
+  let orders=[...db.orders].sort((a,b)=>(a.soDate||'').localeCompare(b.soDate||''));
   if(month) orders=orders.filter(o=>o.soDate.startsWith(month));
 
   const BOM='\uFEFF';
